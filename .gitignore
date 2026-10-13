@@ -1,0 +1,33 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# node
+node_modules/
+.next/
+out/
+
+# data and caches (rebuilt by the ingest jobs)
+data/
+cache/
+fastf1_cache/
+telemetry/
+*.parquet
+
+# local tooling
+.DS_Store
+.idea/
+.vscode/
+.claude/

@@ -1,0 +1,38 @@
+[project]
+name = "pitwall"
+version = "0.1.0"
+description = "Pit Wall backend: F1 knowledge graph, agent and API"
+readme = "README.md"
+authors = [
+    { name = "Firas Mumtaz", email = "firasmumtaz12@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.143.1",
+    "fastf1>=3.8.3",
+    "httpx>=0.28.1",
+    "neo4j>=6.4.0",
+    "polars>=2.0.0",
+    "pydantic-settings>=2.16.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.8.18,<0.9.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.17.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

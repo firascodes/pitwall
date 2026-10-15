@@ -128,7 +128,7 @@ The system has four parts:
    ├──:HAS_STINT──▶(Stint {season, from_round, to_round})──:FOR_TEAM──▶(Constructor)   ← derived
    │
    └──[:TEAMMATE_OF {season, team, quali_h2h:[a,b], race_h2h:[a,b],
-                     avg_quali_gap_pct:[a,b]}]──(Driver)            ← derived, one per pair
+                     sprint_h2h:[a,b], avg_quali_gap_pct}]──(Driver) ← derived, one per pair
 ```
 
 ```
@@ -153,7 +153,8 @@ The system has four parts:
 (:Result)-[:FOR_TEAM]->(:Constructor)                               // source of truth for team membership
 (:Result)-[:HAS_LAP]->(:Lap)
 (:Driver)-[:HAS_STINT]->(:Stint)-[:FOR_TEAM]->(:Constructor)        // derived
-(:Driver)-[:TEAMMATE_OF {season, team, quali_h2h, race_h2h, avg_quali_gap_pct}]->(:Driver)   // derived
+(:Driver)-[:TEAMMATE_OF {season, team, quali_h2h, race_h2h, sprint_h2h,
+                         avg_quali_gap_pct, sessions_together}]->(:Driver)   // derived
 (:Constructor)-[:BECAME {year}]->(:Constructor)                     // team lineage
 (:Manufacturer)-[:SUPPLIED {component, season}]->(:Constructor)
 (:Race)-[:AT]->(:Circuit)-[:HAS_TRAIT {score}]->(:CircuitTrait)
@@ -168,7 +169,7 @@ Design choices in this model (interviewers ask about these):
 - **Intermediate node (reification).** A result is a `Result` node, not only properties on a relationship. Reason: penalties, stewards' decisions, laps, and sources must link to a result. A relationship cannot be the target of another relationship. A node can.
 - **Team on each result.** Team membership is a fact at race level. A season is too coarse: drivers change teams mid-season (2025: Lawson and Tsunoda after round 2). `Result -[:FOR_TEAM]->` is the source of truth. `Stint` nodes are derived from it.
 - **Derived relationships.** `Stint` and `TEAMMATE_OF` are calculated after each ingest. They are **denormalizations** (stored data that you could calculate again). You can delete and rebuild them at any time, so they cannot drift from the facts.
-- **Symmetric relationship.** `TEAMMATE_OF` means the same in both directions. Store one copy per pair, from the lower `driver_id` to the higher. Match it without direction: `-[:TEAMMATE_OF]-`. In the `[a, b]` arrays, index 0 is the start node.
+- **Symmetric relationship.** `TEAMMATE_OF` means the same in both directions. Store one copy per pair, from the lower `driver_id` to the higher. Match it without direction: `-[:TEAMMATE_OF]-`. In the `[a, b]` arrays, index 0 is the start node. `avg_quali_gap_pct` is signed from the start node's side (negative = start node faster). Race and sprint head-to-heads count only sessions where both cars were classified.
 - **Lap summaries in the graph, samples in Parquet.** A `Lap` node has approx. 10 values. Its telemetry samples (hundreds of rows) stay in Parquet. `lap_id` (`season-round-session-driver-lap`) is a **natural key** that both stores share. The tools join them in code (**application-level join**).
 - **Temporal properties.** `SUPPLIED {season}` and `BECAME {year}` record *when* a fact was true. Without time, the graph gives wrong answers for history questions.
 - **Supernode risk.** A **supernode** is a node with very many relationships (for example, one `Season` node linked to every result). Traversals through a supernode are slow. There is no `Season` node. Results link to `Session` (approx. 20 per session). Laps link to their `Result` (max approx. 70), not to the `Session` (approx. 1,200).

@@ -99,7 +99,7 @@ The system has four parts:
 | **FIA documents** | Stewards' decisions (PDF), sporting and technical regulations (PDF) | Public web pages | Fetch slowly. Store the source URL with each fact. |
 | **Wikipedia / Wikidata** | Team lineage (which team became which), power-unit supply | Open licences | Curate. Store a source URL and a "last verified" date. |
 
-**Risk: 2026 data shape.** The 2026 regulations removed DRS and added active aerodynamics. Some telemetry fields can be different or empty. Phase 0 (a one-day **spike**, a short test to remove uncertainty) confirms what FastF1 and OpenF1 give for 2026.
+**Risk: 2026 data shape.** The 2026 regulations removed DRS and added active aerodynamics. Some telemetry fields can be different or empty. Phase 0 (a one-day **spike**, a short test to remove uncertainty) checked what FastF1 and OpenF1 give for 2026. Result: the `DRS` channel is always 0 and there is no active-aero channel. See [the spike report](spikes/2026-telemetry.md).
 
 ---
 
@@ -123,7 +123,7 @@ The system has four parts:
    │                      │                                      │
    │                      └──:HAS_LAP──▶(Lap {lap_id, lap_time,  └─:HAS_TRAIT {score}─▶(CircuitTrait)
    │                                         s1, s2, s3, compound, tyre_age,
-   │                                         part, is_personal_best})
+   │                                         part, is_personal_best, deleted, is_accurate})
    │                                           └── lap_id = shared key ──▶ Parquet samples
    ├──:HAS_STINT──▶(Stint {season, from_round, to_round})──:FOR_TEAM──▶(Constructor)   ← derived
    │
@@ -139,7 +139,8 @@ The system has four parts:
 (:Race {race_id, season, round, name, date})
 (:Session {session_id, type})                           // Q, S, R
 (:Result {result_id, position, grid, points, status, q1, q2, q3, gap_to_teammate_pct})
-(:Lap {lap_id, lap_time, s1, s2, s3, compound, tyre_age, part, is_personal_best})
+(:Lap {lap_id, lap_time, s1, s2, s3, compound, tyre_age, part, is_personal_best,
+      deleted, deleted_reason, is_accurate})   // deleted = track limits; inaccurate laps are not replayed
 (:Stint {season, from_round, to_round})                 // derived from Results
 (:Manufacturer {name})                                  // power-unit or parts supplier (later)
 (:Incident {incident_id, lap, description})             // later
@@ -383,7 +384,7 @@ The backend builds a **replay package** for a lap:
 - **PixiJS** (WebGL 2D renderer) draws the pixel-art car and track at 60 frames per second.
 - The frontend **interpolates** between samples. A car at 300 km/h moves approx. 20 m between raw samples. Without interpolation, the car jumps.
 - Pixel style: draw at low resolution. Scale up with **nearest-neighbour** filtering (sharp pixels, no blur).
-- HUD: speed, gear, throttle and brake bars, delta to ghost, corner number.
+- HUD: speed, gear, RPM, throttle and brake bars, delta to ghost, corner number. No DRS or aero (not in the 2026 feed).
 - Telemetry charts under the replay: **uPlot** (very fast for large time series).
 
 **Accuracy statement.** This is a replay rebuilt from real telemetry. It is not a physics simulation. Position data has an error of some metres. Say this in the UI.
@@ -573,7 +574,7 @@ Approach: a **walking skeleton** (the thinnest version of the full system that r
 
 | # | Deliverable | Done when |
 |---|---|---|
-| 0 | Data spike | You know which 2026 fields FastF1 and OpenF1 give (DRS removed, active aero) |
+| 0 | Data spike ✅ | Done for qualifying: [report](spikes/2026-telemetry.md). Race/sprint size and Jev latency still open. |
 | 1 | Ingest → Neo4j | 2026 Q, Sprint, Race results, laps, stints, TEAMMATE_OF, circuits in the graph. Run it two times: no duplicates. |
 | 2 | Hot-set telemetry → Parquet | Best Q1/Q2/Q3 lap per driver, pole lap, fastest race lap. Lazy load + lock for other laps. |
 | 3 | LangGraph agent | Graph tools (templates + safe Text2Cypher) and telemetry tools. Answers cite rows. |

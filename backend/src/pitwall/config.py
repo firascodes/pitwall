@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
     neo4j_password: SecretStr = SecretStr("pitwall-dev-password")
-    database_url: str = "postgresql://pitwall:pitwall@localhost:5432/pitwall"
+    database_url: str = "postgresql://pitwall:pitwall@localhost:5433/pitwall"
     data_dir: Path = Path("data")
 
     @property

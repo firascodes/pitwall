@@ -252,7 +252,7 @@ flowchart TD
   PLAN --> TOOLS[tools]
   TOOLS --> PLAN
   FAST --> COMPOSE
-  PLAN --> COMPOSE[composer<br/>LLM writes answer + citations]
+  PLAN --> COMPOSE[composer<br/>LLM picks blocks: text + UI components]
   COMPOSE --> VERIFY[verifier<br/>Jev Noul per claim]
   VERIFY -->|claim not supported| COMPOSE
   VERIFY -->|all supported| OUT([answer / replay / audio])
@@ -263,7 +263,7 @@ flowchart TD
 1. **Router (v1.1).** Jev selects the intent (for example `replay_lap`, `compare_laps`, `graph_question`, `doc_question`, `chitchat`) and fills the arguments (driver, race, session). This is fast. Voice needs fast first steps.
 2. **Confidence gate.** If Jev's confidence is high, the system calls the tool directly. No LLM call is necessary. If confidence is low, or the request needs many steps, the LLM **planner** takes control. If an argument is missing ("which race?"), the graph uses an **interrupt** to ask the user.
 3. **Planner.** An LLM with tool calling, in a ReAct loop. It has a limit: maximum 6 tool calls per request. This prevents loops and cost spikes.
-4. **Composer.** An LLM writes the answer. Each fact has a citation to a tool result or a source.
+4. **Composer.** An LLM builds a **hybrid answer**: a list of text blocks and UI components (section 6.4). Each fact has a citation to a tool result or a source.
 5. **Verifier.** Jev checks each claim against the tool results (Noul: "Is this claim supported by this evidence?"). An unsupported claim goes back to the composer one time. If it fails again, the system removes the claim.
 
 **Principle: code owns facts, Jev owns quick typed judgments, the LLM owns language.** Numbers come from code (FastF1, Cypher). The LLM never calculates a lap delta. It only describes the result.
@@ -280,6 +280,60 @@ flowchart TD
 | `search_documents` | question | ranked chunks + linked incidents | Neo4j (hybrid + graph expansion) |
 | `team_radio` | driver, session | transcripts + timestamps | OpenF1 + speech-to-text |
 | `track_fit` | driver | circuit-trait profile (teammate-adjusted) | Neo4j + Parquet |
+
+
+### 6.4 Answer format: Intelligent UI (hybrid answers)
+
+An answer is not only text. The composer picks the **best format for the question**: text, a component, or a mix. This is the same idea as ChatGPT's **Intelligent UI** (Oct 2026). The model chooses from a **fixed library of native components**. It never writes HTML or code.
+
+```
+question: "Hamilton vs Leclerc, last Q3 lap in Singapore?"
+
+composer output (typed JSON, streamed block by block)
+┌──────────────────────────────────────────────────────────┐
+│ text        "Leclerc was 0.21 s faster. He lost 0.08 s   │
+│              in T7 but gained it back in the last sector."│
+│ lap_replay  laps: [ham-21, lec-19]   ghost: true          │
+│ delta_chart source: tool#2 (corner_analysis)              │
+│ corner_table source: tool#2   top: 3                      │
+│ chips       ["Show their Q2 laps", "Who was faster in R?"]│
+└──────────────────────────────────────────────────────────┘
+        │ SSE: one event per block
+        ▼
+web: component registry  ──▶  PixiJS replay, uPlot chart, table, buttons
+telegram: text fallback  ──▶  message + inline buttons + "Open replay" (Mini App)
+```
+
+**Terms**
+
+- **Hybrid answer.** An answer that mixes text and interactive components in one reply.
+- **Generative UI.** The model decides which UI to show at run time, instead of the developer fixing one layout per screen.
+- **Component catalog (registry).** The fixed list of components that the model can use. Each has a typed schema (Pydantic on the backend, TypeScript types on the frontend). The model can only fill these schemas, so its output is safe and always renders.
+- **Server-driven UI.** The backend sends a description of the UI (JSON). The client maps each block `type` to a real component.
+- **Data by reference.** A component names a tool result (`source: tool#2`). The backend fills the numbers from that result. The LLM never types numbers into a chart. This keeps the rule *code owns facts* (section 6.2).
+- **Graceful degradation.** Each component has a plain-text fallback. Telegram and voice get the fallback; the web gets the full component.
+
+**Component catalog (MVP)**
+
+| `type` | Shows | Filled from | Renderer |
+|---|---|---|---|
+| `text` | Short answer with citations | LLM (facts cited) | Markdown |
+| `lap_replay` | Pixel-art lap replay, optional ghost car | `build_replay` | PixiJS |
+| `delta_chart` | Time gap between two laps over distance | `corner_analysis` | uPlot |
+| `corner_table` | Time gained or lost per corner, with cause | `corner_analysis` | Table |
+| `results_table` | Session classification, or any rows | `graph_template`, `graph_query` | Table |
+| `h2h_card` | Teammate battle: quali, race, sprint, average gap | `graph_template` | Card |
+| `stint_timeline` | A driver's teams across the season | `graph_template` | Timeline |
+| `graph_path` | The graph path behind an answer (the "why") | Cypher result paths | Sigma.js / NVL |
+| `chips` | Follow-up questions, or the choices for a clarifying question ("which race?") | LLM | Buttons |
+
+**Rules**
+
+1. Text first, and short. Components carry the detail.
+2. Use a component only if a tool result fills it. No result, no component.
+3. Maximum 4 components per answer.
+4. A simple fact question ("Who won in Monza?") gets text only. The model must not add UI that does not help.
+5. The agent trace panel (section 12) stays separate from the answer. It shows how the answer was made.
 
 ---
 
@@ -566,6 +620,12 @@ CI/CD: GitHub Actions. Steps: lint (**ruff**), types (**mypy** or **pyright**), 
 - **Validation.** For the same lap (Hamilton, Singapore Q, lap 21), OpenF1 and FastF1 gave the same lap time (91.496 s), the same coordinate ranges, and the same number of position samples (358). Lap counts per session also match (363).
 - **Consequences.** The 30 requests/minute limit makes a full-season backfill take approx. 1 hour. Requests are batched per driver (one car-data and one location request covers all of a driver's hot laps). OpenF1 has no lap flags, so the Q1/Q2/Q3 part comes from race control phase start times and deletions are parsed from race control messages (rule-based extraction).
 
+### ADR-009: Hybrid answers from a fixed component catalog
+- **Context.** Many Pit Wall answers are about laps, gaps and trends. Text alone is weak for these. ChatGPT's Intelligent UI (Oct 2026) shows the pattern: the model picks a format and fills native components.
+- **Options.** (a) Text only. (b) The LLM writes HTML or React code (open-ended generative UI). (c) The LLM fills typed blocks from a fixed catalog (declarative generative UI).
+- **Decision.** (c). The composer returns a typed list of blocks (a Pydantic discriminated union, enforced with structured output). Components get their data from tool results by reference.
+- **Consequences.** Output is safe (no generated code runs), always renders, and is testable: evals can check that "compare two laps" gives a `delta_chart` and that "who won" gives text only. Each new component needs a schema, a renderer, and a text fallback. The LLM provider must support **structured output** (JSON schema) reliably.
+
 ### Open decisions (decide before Phase 2)
 - LLM provider and models for the planner and commentary. Compare cost and tool-calling quality on the eval set.
 - Embedding model for documents.
@@ -645,6 +705,8 @@ Approach: a **walking skeleton** (the thinnest version of the full system that r
 | Reranking | A second, more careful ordering of retrieved items |
 | RRF | Reciprocal Rank Fusion: merges ranked lists |
 | SSE | Server-Sent Events: one-way server-to-browser streaming |
+| Hybrid answer | A reply that mixes text with interactive components picked by the model |
+| Generative UI | The model chooses which UI to show at run time, from a fixed catalog |
 | Supernode | A node with very many relationships; slow to traverse |
 | Text2Cypher | An LLM writes Cypher from a natural-language question |
 | Trajectory eval | Checks the steps and tool calls of an agent, not only the final answer |

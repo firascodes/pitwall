@@ -93,9 +93,9 @@ The system has four parts:
 
 | Source | Data | Access | Notes |
 |---|---|---|---|
-| **FastF1** (Python library) | Timing, lap times, sector times, car telemetry (speed, throttle, brake, gear, RPM), car position (x, y), circuit corners | Free. Data comes from the F1 live-timing feed. Local cache. | Telemetry from 2018. Position samples approx. every 0.2–0.3 s. |
+| **FastF1** (Python library) | Timing, telemetry, circuit corners | **Blocked since Oct 2026:** F1's timing archive returns 401 for all seasons (see ADR-008). Used only in the Phase 0 spike. | Kept for the spike script and circuit-corner data from its cache |
 | **Jolpica-F1 API** | Results, qualifying, standings, drivers, constructors, circuits, 1950 to now | Free. Rate limit 4 req/s, 500 req/h. CSV dumps exist. | Successor to the Ergast API (shut down in 2025). Same format. |
-| **OpenF1 API** | Session data, team radio recordings, position, car data | Free. Rate limited. | Use for team radio. |
+| **OpenF1 API** | Laps, sectors, tyre stints, race control messages, car data (speed, throttle, brake, gear, RPM), location (x, y), team radio | Free tier: 3 req/s, **30 req/min**. Non-commercial use. | **Primary source for laps and telemetry** (ADR-008). Car data and location every approx. 240 ms. Same feed as FastF1: identical lap times and coordinates. |
 | **FIA documents** | Stewards' decisions (PDF), sporting and technical regulations (PDF) | Public web pages | Fetch slowly. Store the source URL with each fact. |
 | **Wikipedia / Wikidata** | Team lineage (which team became which), power-unit supply | Open licences | Curate. Store a source URL and a "last verified" date. |
 
@@ -123,7 +123,7 @@ The system has four parts:
    │                      │                                      │
    │                      └──:HAS_LAP──▶(Lap {lap_id, lap_time,  └─:HAS_TRAIT {score}─▶(CircuitTrait)
    │                                         s1, s2, s3, compound, tyre_age,
-   │                                         part, is_personal_best, deleted, is_accurate})
+   │                                         part, is_personal_best, deleted, pit_in, pit_out})
    │                                           └── lap_id = shared key ──▶ Parquet samples
    ├──:HAS_STINT──▶(Stint {season, from_round, to_round})──:FOR_TEAM──▶(Constructor)   ← derived
    │
@@ -139,8 +139,9 @@ The system has four parts:
 (:Race {race_id, season, round, name, date})
 (:Session {session_id, type})                           // Q, S, R
 (:Result {result_id, position, grid, points, status, q1, q2, q3, gap_to_teammate_pct})
-(:Lap {lap_id, lap_time, s1, s2, s3, compound, tyre_age, part, is_personal_best,
-      deleted, deleted_reason, is_accurate})   // deleted = track limits; inaccurate laps are not replayed
+(:Lap {lap_id, driver_number, started_at, lap_time_ms, s1_ms, s2_ms, s3_ms, compound, tyre_age,
+      fresh_tyre, tyre_stint, part, is_personal_best, deleted, deleted_reason, pit_in, pit_out,
+      speed_trap_kph})   // deleted = track limits etc.; only push laps are pre-rendered
 (:Stint {season, from_round, to_round})                 // derived from Results
 (:Manufacturer {name})                                  // power-unit or parts supplier (later)
 (:Incident {incident_id, lap, description})             // later
@@ -191,7 +192,7 @@ Pit Wall does **not** keep telemetry in Neo4j. It keeps telemetry in **Parquet**
 
 **Term: DuckDB / Polars.** Tools that query Parquet files directly, with SQL (DuckDB) or a DataFrame API (Polars). No database server is necessary.
 
-File layout: `telemetry/{season}/{round}/{session}/{driver}.parquet`.
+File layout: **one file per lap**, `telemetry/{season}/{round}/{session}/{driver_id}/{lap}.parquet`. Parquet files cannot be appended to, so one file per lap avoids rewrites. Writes are atomic (write a temp file, then rename). At very large scale this becomes the **small-files problem**; at a few thousand laps it is the simplest correct choice.
 
 ### 4.3 Postgres: application state
 
@@ -215,7 +216,7 @@ You can use Supabase for this Postgres. You already know its tools.
 | Data validation | **Pydantic v2** | Typed models for requests, tool inputs, and LLM **structured output** |
 | Agent framework | **LangGraph** | Explicit state machine, checkpointing, streaming (see ADR-003) |
 | Graph access | Official `neo4j` driver + **`neo4j-graphrag`** | Ready retrievers: Vector, Hybrid, VectorCypher, Text2Cypher |
-| Telemetry analysis | FastF1 + Polars + DuckDB | |
+| Telemetry analysis | OpenF1 + NumPy + Polars (DuckDB later) | |
 | Telegram | **aiogram** (async) in **webhook** mode | Webhook: Telegram calls your server. Better than **long polling** in production. |
 | Background jobs | A worker process with a scheduler (APScheduler or cron) | Ingest after each session |
 
@@ -295,7 +296,7 @@ Ingest runs after each session and on demand.
 | Data | Size per season | Rule |
 |---|---|---|
 | Results, grid, qualifying times, laps (summaries) | Small | **Eager**: load all after each Q, Sprint, and Race. A partial graph gives wrong answers. |
-| Telemetry, **hot set**: best Q1/Q2/Q3 lap per driver, pole lap, fastest race lap | Approx. 2,000 laps | **Eager**: save to Parquet after each session |
+| Telemetry, **hot set**: each driver's best push lap per Q part + last Q3 push lap; fastest push lap per driver in sprints and races. Push lap = timed, not deleted, not an out-lap or in-lap. | Approx. 1,700 laps | **Eager**: save to Parquet after each session |
 | All other telemetry | Approx. 24,000+ laps | **Lazy**: load on the first request, then keep (laps never change) |
 
 **Term: cache-aside.** The tool checks the cache (Parquet). On a miss, it loads the data and stores it.
@@ -372,7 +373,7 @@ Jev gives each circuit a **Score** per trait, from a text description of the cir
 
 The backend builds a **replay package** for a lap:
 
-1. Load the position (x, y) and car data (speed, throttle, brake, gear, RPM) for the lap.
+1. Load the location (x, y) and car data (speed, throttle, brake, gear, RPM) for the lap window from OpenF1. Interpolate location onto the car-data timestamps (the two streams are sampled at different moments). Integrate speed over time for distance (trapezoid rule).
 2. **Resample** to a fixed **distance step** (for example every 5 m). Raw samples have uneven time gaps.
 3. Calculate events: brake points, apex minimum speeds, top speed, gear changes.
 4. Add the track outline and the corner numbers (FastF1 circuit info).
@@ -559,6 +560,12 @@ CI/CD: GitHub Actions. Steps: lint (**ruff**), types (**mypy** or **pyright**), 
 - **Alternatives.** Render video on the server: works in any chat, but costs CPU and storage, and is not interactive.
 - **Consequences.** One renderer for both channels. Interactive controls (pause, scrub, ghost).
 
+### ADR-008: OpenF1 replaces FastF1 for laps and telemetry
+- **Context.** On 15 Oct 2026 the Phase 0 spike downloaded data with FastF1. On 17 Oct, F1's timing archive (`livetiming.formula1.com/static`) returned **401 Unauthorized for every season**, from a CloudFront edge function. FastF1 3.8.3 sends an F1 TV token only for live streaming, not for the archive.
+- **Decision.** Use OpenF1 for laps, tyre stints, race control messages, car data, and location. Keep all source-specific code in `sources/openf1.py` and `telemetry/openf1_*.py`. Everything after `LapRow` is source-agnostic.
+- **Validation.** For the same lap (Hamilton, Singapore Q, lap 21), OpenF1 and FastF1 gave the same lap time (91.496 s), the same coordinate ranges, and the same number of position samples (358). Lap counts per session also match (363).
+- **Consequences.** The 30 requests/minute limit makes a full-season backfill take approx. 1 hour. Requests are batched per driver (one car-data and one location request covers all of a driver's hot laps). OpenF1 has no lap flags, so the Q1/Q2/Q3 part comes from race control phase start times and deletions are parsed from race control messages (rule-based extraction).
+
 ### Open decisions (decide before Phase 2)
 - LLM provider and models for the planner and commentary. Compare cost and tool-calling quality on the eval set.
 - Embedding model for documents.
@@ -576,8 +583,8 @@ Approach: a **walking skeleton** (the thinnest version of the full system that r
 | # | Deliverable | Done when |
 |---|---|---|
 | 0 | Data spike ✅ | Done for qualifying: [report](spikes/2026-telemetry.md). Race/sprint size and Jev latency still open. |
-| 1 | Ingest → Neo4j | 2026 Q, Sprint, Race results, laps, stints, TEAMMATE_OF, circuits in the graph. Run it two times: no duplicates. |
-| 2 | Hot-set telemetry → Parquet | Best Q1/Q2/Q3 lap per driver, pole lap, fastest race lap. Lazy load + lock for other laps. |
+| 1 | Ingest → Neo4j ✅ | 2026 Q, Sprint, Race results, stints, TEAMMATE_OF, circuits in the graph. Run it two times: no duplicates. |
+| 2 | Laps + telemetry ✅ | Every lap in the graph. Hot-set push laps in Parquet. Lazy load + single-flight + advisory lock for other laps. |
 | 3 | LangGraph agent | Graph tools (templates + safe Text2Cypher) and telemetry tools. Answers cite rows. |
 | 4 | Pixel-retro web UI | Chat, live agent-trace panel, lap replay with ghost car, corner-by-corner delta |
 | 5 | Telegram bot | Text questions. "Open replay" button opens the Mini App. |
@@ -600,6 +607,11 @@ Approach: a **walking skeleton** (the thinnest version of the full system that r
 - Track-fit analysis and qualifying-order prediction with a 2025 backtest.
 
 ---
+
+## 17.1 Known data gaps
+
+- **Drivers with no qualifying time.** Jolpica omits a driver who set no classified time (2026 R1: Verstappen, Stroll, Sainz). Their laps have no `Result` to attach to, so they are skipped (2 laps for Verstappen). Fix: create a "took part, no time" `Result` when OpenF1 shows laps but Jolpica has no entry.
+- **Telemetry lap time vs official.** The 5 m grid stops at the last full step, so telemetry time is approx. 0.1–0.2 s short of the official lap time. Replays are not affected. Evals use a 0.25 s tolerance.
 
 ## 18. Glossary (quick reference)
 

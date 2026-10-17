@@ -34,3 +34,20 @@ Sample: R17 Singapore Grand Prix qualifying, Hamilton's fastest lap (lap 21, 1:3
 
 - Race and sprint sessions: load time and size (expected to be larger than qualifying).
 - Jev latency and cost (needs a TypeSafe API key).
+
+## Update, 2026-10-17: the timing archive is closed
+
+Two days after this spike, `livetiming.formula1.com/static` started returning **401 Unauthorized** for every season (2025 too), from a CloudFront edge function. The Singapore data above came from FastF1's local cache. Pit Wall now uses **OpenF1** for laps and telemetry (ADR-008 in the [architecture plan](../architecture.md)).
+
+OpenF1 check for the same lap (Hamilton, Singapore Q, lap 21):
+
+| | FastF1 | OpenF1 |
+|---|---|---|
+| Lap time | 1:31.496 | 91.496 s |
+| x range | -13225..1170 | -13225..1170 |
+| y range | -4903..4088 | -4903..4088 |
+| Position samples | 358 | 358 |
+| Car data / location interval | 240 ms | 240 ms |
+| Laps in the session | 363 | 363 |
+
+OpenF1 also has no `IsAccurate` or `Deleted` flags. Q1/Q2/Q3 come from race control "SESSION STARTED" messages (`qualifying_phase`), and deletions from messages such as `CAR 12 (ANT) TIME 1:32.818 DELETED - TRACK LIMITS AT TURN 2 LAP 8`.

@@ -612,6 +612,9 @@ Approach: a **walking skeleton** (the thinnest version of the full system that r
 
 - **Drivers with no qualifying time.** Jolpica omits a driver who set no classified time (2026 R1: Verstappen, Stroll, Sainz). Their laps have no `Result` to attach to, so they are skipped (2 laps for Verstappen). Fix: create a "took part, no time" `Result` when OpenF1 shows laps but Jolpica has no entry.
 - **Telemetry lap time vs official.** The 5 m grid stops at the last full step, so telemetry time is approx. 0.1–0.2 s short of the official lap time. Replays are not affected. Evals use a 0.25 s tolerance.
+- **Monaco race positions (2026 R6).** OpenF1's `location` feed for this race stops at 14:00 UTC, about an hour in. Lap rows are complete (1,452 laps), but no race lap after that point can be replayed. Car data (speed, gear, throttle) is complete. The API returns "no position data for this lap" and the agent says so.
+- **Start times disagree across sources.** Miami 2026 race: 17:00 UTC in OpenF1, 20:00 UTC in Jolpica. Sessions are matched to the nearest same-type session within 24 hours, not by exact time.
+- **Laps with no start time.** OpenF1 sometimes has `date_start = null` (seen in 2026 R3 qualifying). These laps stay in the graph but are never pre-rendered, because there is no telemetry window.
 
 ## 18. Glossary (quick reference)
 

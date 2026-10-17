@@ -42,19 +42,25 @@ MERGE (l:Lap {lap_id: row.lap_id})
 MERGE (res)-[:HAS_LAP]->(l)
 """
 
-MATCH_WINDOW = timedelta(hours=3)
+# Same-type sessions are a week apart, so the nearest one within a day is the match.
+# (Start times can disagree: Miami 2026 is 17:00 UTC in OpenF1 but 20:00 in Jolpica.)
+MATCH_WINDOW = timedelta(hours=24)
 
 
 def match_openf1_session(
     sessions: list[dict[str, Any]], session_type: str, starts_at: datetime
 ) -> int:
-    """Entity resolution across sources: same session type, start time within 3 hours."""
+    """Entity resolution across sources: same session type, nearest start time."""
     name = SESSION_NAMES[session_type]
-    for s in sessions:
-        start = datetime.fromisoformat(s["date_start"])
-        if s["session_name"] == name and abs(start - starts_at) < MATCH_WINDOW:
-            return s["session_key"]
-    raise LookupError(f"no OpenF1 {name} session near {starts_at}")
+    candidates = [
+        (abs(datetime.fromisoformat(s["date_start"]) - starts_at), s["session_key"])
+        for s in sessions
+        if s["session_name"] == name
+    ]
+    gap, key = min(candidates, default=(MATCH_WINDOW, None))
+    if key is None or gap >= MATCH_WINDOW:
+        raise LookupError(f"no OpenF1 {name} session near {starts_at}")
+    return key
 
 
 def _render_hot_laps(

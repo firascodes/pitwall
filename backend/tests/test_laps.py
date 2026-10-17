@@ -9,12 +9,13 @@ def _row(
     deleted: bool = False,
     pit_in: bool = False,
     pit_out: bool = False,
+    started_at: str | None = "2026-10-04T13:20:00+00:00",
 ) -> LapRow:
     session = "2026-17-Q" if part else "2026-17-R"
     props = LapProps(
         lap_number=number,
         driver_number=1,
-        started_at=None,
+        started_at=started_at,
         lap_time_ms=ms,
         s1_ms=None,
         s2_ms=None,
@@ -64,3 +65,8 @@ def test_out_laps_and_in_laps_never_count_as_last_q3_lap() -> None:
         _row("hamilton", 22, 108_956, "Q3", pit_in=True),  # cool-down lap into the pits
     ]
     assert [r.props.lap_number for r in hot_set(rows)] == [21]
+
+
+def test_laps_without_a_start_time_are_never_rendered() -> None:
+    rows = [_row("hamilton", 2, 91_000, "Q1", started_at=None), _row("hamilton", 4, 92_000, "Q1")]
+    assert [r.props.lap_number for r in hot_set(rows)] == [4]

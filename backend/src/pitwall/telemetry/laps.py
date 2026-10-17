@@ -42,7 +42,7 @@ class LapRow(BaseModel):
 
 
 def hot_set(rows: list[LapRow]) -> list[LapRow]:
-    """Laps worth pre-rendering. Only push laps qualify: timed, not deleted (track limits),
+    """Laps worth pre-rendering. Only push laps qualify: timed, with a start time, not deleted,
     and not an out-lap or in-lap (OpenF1 gives those a time too, garage time included).
 
     Qualifying: each driver's best lap per part, plus their last timed Q3 lap.
@@ -51,7 +51,11 @@ def hot_set(rows: list[LapRow]) -> list[LapRow]:
     timed = [
         r
         for r in rows
-        if r.props.lap_time_ms and not r.props.deleted and not r.props.pit_in and not r.props.pit_out
+        if r.props.lap_time_ms
+        and r.props.started_at  # no start time means no telemetry window
+        and not r.props.deleted
+        and not r.props.pit_in
+        and not r.props.pit_out
     ]
     best: dict[tuple[str, str | None], LapRow] = {}
     last_q3: dict[str, LapRow] = {}

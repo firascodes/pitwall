@@ -12,6 +12,7 @@ def _setup_logging() -> None:
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("neo4j.notifications").setLevel(logging.WARNING)
 
 
 def main(argv: list[str] | None = None) -> None:

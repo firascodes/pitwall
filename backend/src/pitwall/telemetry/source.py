@@ -4,9 +4,9 @@ import polars as pl
 from neo4j import Driver
 
 from pitwall.sources.openf1 import OpenF1Client
-from pitwall.telemetry.store import LapLoader
 from pitwall.telemetry.openf1_telemetry import build_lap_frame, lap_window
 from pitwall.telemetry.resample import resample_lap
+from pitwall.telemetry.store import LapLoader
 
 LAP_QUERY = """
 MATCH (s:Session)<-[:IN_SESSION]-(:Result)-[:HAS_LAP]->(l:Lap {lap_id: $lap_id})

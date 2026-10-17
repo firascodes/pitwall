@@ -49,7 +49,9 @@ def deleted_laps(race_control: list[dict[str, Any]]) -> dict[tuple[int, int], st
     return deleted
 
 
-def _tyres(stints: list[dict[str, Any]], car: int, lap: int) -> tuple[str | None, int | None, bool | None, int | None]:
+def _tyres(
+    stints: list[dict[str, Any]], car: int, lap: int
+) -> tuple[str | None, int | None, bool | None, int | None]:
     for s in stints:
         if s["driver_number"] == car and s["lap_start"] <= lap <= (s["lap_end"] or lap):
             age_at_start = s.get("tyre_age_at_start")
@@ -68,7 +70,9 @@ def lap_rows(
 ) -> list[LapRow]:
     phases = qualifying_phase_starts(race_control) if session_id.endswith("-Q") else []
     deleted = deleted_laps(race_control)
-    pit_out = {(lap["driver_number"], lap["lap_number"]) for lap in laps if lap.get("is_pit_out_lap")}
+    pit_out = {
+        (lap["driver_number"], lap["lap_number"]) for lap in laps if lap.get("is_pit_out_lap")
+    }
 
     rows = []
     best_so_far: dict[int, int] = {}
@@ -84,28 +88,31 @@ def lap_rows(
         if personal_best:
             best_so_far[car] = lap_ms  # type: ignore[assignment]
         compound, tyre_age, fresh, tyre_stint = _tyres(stints, car, number)
-        rows.append(LapRow(
-            lap_id=lap_id(session_id, driver_id, number),
-            result_id=f"{session_id}-{driver_id}",
-            props=LapProps(
-                lap_number=number,
-                driver_number=car,
-                started_at=started.isoformat() if started else None,
-                lap_time_ms=lap_ms,
-                s1_ms=_ms(lap.get("duration_sector_1")),
-                s2_ms=_ms(lap.get("duration_sector_2")),
-                s3_ms=_ms(lap.get("duration_sector_3")),
-                compound=compound,
-                tyre_age=tyre_age,
-                fresh_tyre=fresh,
-                tyre_stint=tyre_stint,
-                part=part_for(started, phases),
-                is_personal_best=personal_best,
-                deleted=reason is not None,
-                deleted_reason=reason,
-                pit_in=(car, number + 1) in pit_out,  # the lap before a pit-out lap ends in the pits
-                pit_out=bool(lap.get("is_pit_out_lap")),
-                speed_trap_kph=lap.get("st_speed"),
-            ),
-        ))
+        rows.append(
+            LapRow(
+                lap_id=lap_id(session_id, driver_id, number),
+                result_id=f"{session_id}-{driver_id}",
+                props=LapProps(
+                    lap_number=number,
+                    driver_number=car,
+                    started_at=started.isoformat() if started else None,
+                    lap_time_ms=lap_ms,
+                    s1_ms=_ms(lap.get("duration_sector_1")),
+                    s2_ms=_ms(lap.get("duration_sector_2")),
+                    s3_ms=_ms(lap.get("duration_sector_3")),
+                    compound=compound,
+                    tyre_age=tyre_age,
+                    fresh_tyre=fresh,
+                    tyre_stint=tyre_stint,
+                    part=part_for(started, phases),
+                    is_personal_best=personal_best,
+                    deleted=reason is not None,
+                    deleted_reason=reason,
+                    pit_in=(car, number + 1)
+                    in pit_out,  # the lap before a pit-out lap ends in the pits
+                    pit_out=bool(lap.get("is_pit_out_lap")),
+                    speed_trap_kph=lap.get("st_speed"),
+                ),
+            )
+        )
     return rows

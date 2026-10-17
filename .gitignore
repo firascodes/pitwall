@@ -19,11 +19,9 @@ node_modules/
 .next/
 out/
 
-# data and caches (rebuilt by the ingest jobs)
-data/
-cache/
-fastf1_cache/
-telemetry/
+# data and caches (rebuilt by the ingest jobs); anchored so source folders with
+# the same names (e.g. src/pitwall/telemetry) are never ignored
+/backend/data/
 *.parquet
 
 # local tooling

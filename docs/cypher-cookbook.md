@@ -77,8 +77,8 @@ ORDER BY gained_s DESC
 
 ### Fastest race lap on each tyre compound
 ```cypher
-MATCH (d:Driver)-[:ACHIEVED]->(:Result)-[:IN_SESSION]->(:Session {session_id: '2026-17-R'}),
-      (d)-[:ACHIEVED]->(res:Result {result_id: '2026-17-R-' + d.driver_id})-[:HAS_LAP]->(l:Lap)
+MATCH (d:Driver)-[:ACHIEVED]->(res:Result)-[:IN_SESSION]->(:Session {session_id: '2026-17-R'}),
+      (res)-[:HAS_LAP]->(l:Lap)
 WHERE l.lap_time_ms IS NOT NULL AND NOT l.pit_in AND NOT l.pit_out AND NOT l.deleted
 WITH l.compound AS tyre, d, l ORDER BY l.lap_time_ms
 WITH tyre, collect({driver: d.code, lap: l.lap_number, tyre_age: l.tyre_age, s: l.lap_time_ms / 1000.0})[0] AS best

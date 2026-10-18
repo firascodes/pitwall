@@ -96,6 +96,7 @@ The system has four parts:
 | **FastF1** (Python library) | Timing, telemetry, circuit corners | **Blocked since Oct 2026:** F1's timing archive returns 401 for all seasons (see ADR-008). Used only in the Phase 0 spike. | Kept for the spike script and circuit-corner data from its cache |
 | **Jolpica-F1 API** | Results, qualifying, standings, drivers, constructors, circuits, 1950 to now | Free. Rate limit 4 req/s, 500 req/h. CSV dumps exist. | Successor to the Ergast API (shut down in 2025). Same format. |
 | **OpenF1 API** | Laps, sectors, tyre stints, race control messages, car data (speed, throttle, brake, gear, RPM), location (x, y), team radio | Free tier: 3 req/s, **30 req/min**. Non-commercial use. | **Primary source for laps and telemetry** (ADR-008). Car data and location every approx. 240 ms. Same feed as FastF1: identical lap times and coordinates. |
+| **MultiViewer API** | Corner numbers and x/y positions per circuit | Free, unofficial (the same source FastF1 uses for circuit info) | Used by `compare_laps` to name corners. Cached on disk per session. Corners land within 3 m of the racing line. |
 | **FIA documents** | Stewards' decisions (PDF), sporting and technical regulations (PDF) | Public web pages | Fetch slowly. Store the source URL with each fact. |
 | **Wikipedia / Wikidata** | Team lineage (which team became which), power-unit supply | Open licences | Curate. Store a source URL and a "last verified" date. |
 
@@ -258,6 +259,13 @@ flowchart TD
   VERIFY -->|all supported| OUT([answer / replay / audio])
 ```
 
+**As built (deliverable 3).** `planner ⇄ tools → composer → END` in `agent/graph.py`. Router and verifier come in v1.1.
+
+- **Hard tool budget.** After 6 tool results in one turn, the planner is called with `tool_choice="none"`. Code enforces the limit, not the prompt.
+- **Tool errors are messages.** `ToolNode(handle_tool_errors=True)` returns an error as a tool message, so the planner can fix a Cypher query or ask about an ambiguous name.
+- **Sources are per turn.** The composer gets only this turn's question, findings and tool results (`r1`, `r2`, ...). Old turns stay out: this is cheaper, and the composer cannot cite stale data.
+- **Memory.** The Postgres checkpointer (`AsyncPostgresSaver`) saves the state after each step, keyed by `thread_id`. The planner sees the last 4 user turns.
+
 **Build order.** The MVP uses the LLM planner for all requests (simple, one path). v1.1 adds the Jev router fast path. The eval compares latency and accuracy before and after, so the README shows a measured improvement.
 
 1. **Router (v1.1).** Jev selects the intent (for example `replay_lap`, `compare_laps`, `graph_question`, `doc_question`, `chitchat`) and fills the arguments (driver, race, session). This is fast. Voice needs fast first steps.
@@ -270,17 +278,25 @@ flowchart TD
 
 ### 6.3 Tools
 
-| Tool | Input | Output | Store |
-|---|---|---|---|
-| `find_lap` | driver, race, session, rule ("fastest Q3", "last Q3") | lap ID, lap time | Parquet / FastF1 |
-| `build_replay` | lap ID(s) | replay package (section 9) | Parquet |
-| `corner_analysis` | two lap IDs | time gained or lost per corner, with causes (brake point, minimum speed, exit speed) | Parquet |
-| `graph_query` | question | rows + the Cypher used | Neo4j (Text2Cypher) |
-| `graph_template` | template name + parameters | rows | Neo4j (fixed Cypher) |
-| `search_documents` | question | ranked chunks + linked incidents | Neo4j (hybrid + graph expansion) |
-| `team_radio` | driver, session | transcripts + timestamps | OpenF1 + speech-to-text |
-| `track_fit` | driver | circuit-trait profile (teammate-adjusted) | Neo4j + Parquet |
+Built in deliverable 3 (`backend/src/pitwall/agent/tools/`). Names, races and drivers in tool inputs are free text. Code resolves them to IDs (**entity resolution**): an exact code or ID beats a whole word of the name, which beats a substring ("VER" is Verstappen, not Oli*ver* Bearman). An ambiguous name returns an error that tells the planner to ask the user.
 
+| Tool | Input | Output (`kind`) | Store |
+|---|---|---|---|
+| `session_results` | race, session | classification (`rows`) | Neo4j template |
+| `driver_season` | driver, session | result per round (`rows`) | Neo4j template |
+| `standings` | by driver or team | points and wins (`rows`) | Neo4j template |
+| `teammate_battle` | driver | head-to-heads from the driver's side (`h2h`) | Neo4j template |
+| `driver_teams` | driver | stints with round ranges (`stints`) | Neo4j template |
+| `session_laps` | race, session, driver?, compound?, fastest or deleted | up to 25 laps (`rows`) | Neo4j template |
+| `run_cypher` | one Cypher query | up to 200 rows (`rows`) | Neo4j, guarded (section 8.1) |
+| `find_lap` | driver, race, session, fastest / last Q3 / lap N | lap ID and official time (`lap`) | Neo4j |
+| `compare_laps` | two lap IDs | gap trace and gain per corner with cause (`lap_compare`) | Parquet + corners |
+
+**Content and artifact.** Each tool returns two things: short **content** for the LLM, and the full **artifact** for the UI. The LLM never sees the artifact. Components are filled from it (data by reference, section 6.4).
+
+**Official times for facts.** `compare_laps` takes lap times from the graph (official timing). Telemetry is approx. 0.1 to 0.2 s short (section 17.1), so it is used only for the shape of the gap and the corner split.
+
+Later: `search_documents` (stewards' decisions, hybrid search + graph expansion), `team_radio`, `track_fit`.
 
 ### 6.4 Answer format: Intelligent UI (hybrid answers)
 
@@ -399,13 +415,23 @@ Pit Wall has four retrieval strategies. The agent selects one or more:
 
 ### 8.1 Text2Cypher safety
 
-Text2Cypher lets an LLM write database queries. Pit Wall controls this:
+Text2Cypher lets an LLM write database queries. LLM output is **untrusted input**, so Pit Wall uses **defence in depth** (several independent layers):
 
-- Run in a **read-only transaction** with a **read-only database user**.
-- Run `EXPLAIN` first. Reject the query if it fails or if it writes.
-- Set a query **timeout** and a row **limit**.
-- If the query fails, send the error to the LLM and **retry** one time (a **self-correction loop**).
-- Log every generated query. Use bad queries as new few-shot examples.
+```
+LLM-written Cypher
+   │
+   ├─1─ denylist (regex)        LOAD CSV, CALL <procedure>, apoc.*, PROFILE, EXPLAIN  → refuse
+   ├─2─ EXPLAIN → query_type    anything but 'r' (read) → refuse          (nothing runs yet)
+   ├─3─ read transaction        the server itself rejects any write (AccessMode error)
+   └─4─ limits                  5 s timeout, max 200 rows
+          │
+          └─ error? → back to the planner as a tool message → it can fix and retry
+```
+
+- **Why a denylist as well?** `EXPLAIN` reports `LOAD CSV FROM 'http://…'` and `CALL apoc.…` as **reads**. They can still fetch files or URLs (**SSRF**: server-side request forgery). Tested in `tests/test_graph_query.py`.
+- **No read-only database user.** Neo4j Community has no role-based access control (an Enterprise feature). The read transaction (layer 3) gives the same protection for writes.
+- **Retries.** The tool budget (max 6 tool calls per question, section 6.2) bounds retries. There is no separate retry counter.
+- Log every generated query. Use bad queries as new few-shot examples (with the evals, deliverable 6).
 
 ### 8.2 "Which track suits which driver?" (the method)
 
@@ -626,8 +652,13 @@ CI/CD: GitHub Actions. Steps: lint (**ruff**), types (**mypy** or **pyright**), 
 - **Decision.** (c). The composer returns a typed list of blocks (a Pydantic discriminated union, enforced with structured output). Components get their data from tool results by reference.
 - **Consequences.** Output is safe (no generated code runs), always renders, and is testable: evals can check that "compare two laps" gives a `delta_chart` and that "who won" gives text only. Each new component needs a schema, a renderer, and a text fallback. The LLM provider must support **structured output** (JSON schema) reliably.
 
+### ADR-010: OpenAI gpt-6-luna for the planner and the composer
+- **Context.** The agent needs tool calling and strict structured output (ADR-009). Cost must stay low for a public demo.
+- **Decision.** `gpt-6-luna`: the smallest model of OpenAI's current family. $0.10 / $0.50 per million input / output tokens, 1M context, tool calling and structured output. Reasoning effort `low`. Responses API (Chat Completions allows function calling only with reasoning effort `none`).
+- **Consequences.** A question costs approx. 2 to 8 LLM calls (planner loop + composer), a fraction of a cent. The model is configured by `PITWALL_LLM_MODEL`, so the eval set can compare models later.
+
 ### Open decisions (decide before Phase 2)
-- LLM provider and models for the planner and commentary. Compare cost and tool-calling quality on the eval set.
+- ~~LLM provider~~ Decided: OpenAI **gpt-6-luna** (ADR-010). Compare with others on the eval set later.
 - Embedding model for documents.
 - STT and TTS providers (quality of driver-name recognition; British voices).
 - AuraDB Free vs Neo4j on the VPS.
@@ -645,7 +676,7 @@ Approach: a **walking skeleton** (the thinnest version of the full system that r
 | 0 | Data spike ✅ | Done for qualifying: [report](spikes/2026-telemetry.md). Race/sprint size and Jev latency still open. |
 | 1 | Ingest → Neo4j ✅ | 2026 Q, Sprint, Race results, stints, TEAMMATE_OF, circuits in the graph. Run it two times: no duplicates. |
 | 2 | Laps + telemetry ✅ | Every lap in the graph. Hot-set push laps in Parquet. Lazy load + single-flight + advisory lock for other laps. |
-| 3 | LangGraph agent | Graph tools (templates + safe Text2Cypher) and telemetry tools. Answers cite rows. |
+| 3 | LangGraph agent ✅ | Graph tools (templates + safe Text2Cypher) and telemetry tools. Hybrid answers that cite sources. `/ask` streams over SSE. Live check with the OpenAI key still to do. |
 | 4 | Pixel-retro web UI | Chat, live agent-trace panel, lap replay with ghost car, corner-by-corner delta |
 | 5 | Telegram bot | Text questions. "Open replay" button opens the Mini App. |
 | 6 | Evals v1 + CI | 2025 golden sets: graph Q&A (execution accuracy), lap selection, tool trajectory. Ablation: vector-only vs Text2Cypher vs templates. Runs in GitHub Actions. |
@@ -674,6 +705,7 @@ Approach: a **walking skeleton** (the thinnest version of the full system that r
 - **Telemetry lap time vs official.** The 5 m grid stops at the last full step, so telemetry time is approx. 0.1–0.2 s short of the official lap time. Replays are not affected. Evals use a 0.25 s tolerance.
 - **Monaco race positions (2026 R6).** OpenF1's `location` feed for this race stops at 14:00 UTC, about an hour in. Lap rows are complete (1,452 laps), but no race lap after that point can be replayed. Car data (speed, gear, throttle) is complete. The API returns "no position data for this lap" and the agent says so.
 - **Start times disagree across sources.** Miami 2026 race: 17:00 UTC in OpenF1, 20:00 UTC in Jolpica. Sessions are matched to the nearest same-type session within 24 hours, not by exact time.
+- **Corner layouts can be older than the season.** MultiViewer answered the 2026 Singapore request with its 2023 layout (the newest it has). Corners still land within 3 m of 2026 racing lines. A circuit with a changed layout would need a check.
 - **Laps with no start time.** OpenF1 sometimes has `date_start = null` (seen in 2026 R3 qualifying). These laps stay in the graph but are never pre-rendered, because there is no telemetry window.
 
 ## 18. Glossary (quick reference)

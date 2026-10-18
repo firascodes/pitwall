@@ -33,12 +33,12 @@ ORDER BY team
 ```
 
 ## One driver's head-to-head, from their own side
-Match without an arrow, then use `startNode()` to read the arrays the right way round.
+Match without an arrow, then use `startNode()` to read the arrays the right way round. Swap the pair by index: list properties are stored as typed arrays (`long[]`), and `reverse()` rejects them.
 ```cypher
 MATCH (h:Driver {driver_id: 'hamilton'})-[t:TEAMMATE_OF]-(mate)
 WITH h, t, mate, startNode(t) = h AS h_first
 RETURN mate.name AS teammate,
-       CASE WHEN h_first THEN t.quali_h2h ELSE reverse(t.quali_h2h) END AS quali_h2h,
+       CASE WHEN h_first THEN t.quali_h2h ELSE [t.quali_h2h[1], t.quali_h2h[0]] END AS quali_h2h,
        CASE WHEN h_first THEN t.avg_quali_gap_pct ELSE -t.avg_quali_gap_pct END AS gap_pct
 ```
 

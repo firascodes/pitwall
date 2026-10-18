@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     neo4j_password: SecretStr = SecretStr("pitwall-dev-password")
     database_url: str = "postgresql://pitwall:pitwall@localhost:5433/pitwall"
     data_dir: Path = Path("data")
+    openai_api_key: SecretStr | None = None
+    llm_model: str = "gpt-6-luna"  # smallest current OpenAI model with tool calling
+    llm_reasoning_effort: str = "low"
+    agent_max_tool_calls: int = 6
 
     @property
     def fastf1_cache_dir(self) -> Path:
@@ -24,6 +28,10 @@ class Settings(BaseSettings):
     @property
     def telemetry_dir(self) -> Path:
         return self.data_dir / "telemetry"
+
+    @property
+    def circuits_dir(self) -> Path:
+        return self.data_dir / "circuits"
 
 
 @lru_cache

@@ -51,3 +51,10 @@ def test_deleted_laps_have_a_reason(tools) -> None:
 def test_run_cypher_refuses_writes(tools) -> None:
     with pytest.raises(UnsafeCypher):
         call(tools["run_cypher"], query="MATCH (n) DETACH DELETE n")
+
+
+def test_tools_report_the_cypher_they_ran(tools) -> None:
+    _, artifact = call(tools["session_results"], race="Singapore", session="Q")
+    queries = artifact["queries"]
+    assert [q["params"].get("race_id") for q in queries] == [None, "2026-17"]
+    assert "MATCH (r:Race" in queries[0]["cypher"] and queries[1]["rows"] == 22

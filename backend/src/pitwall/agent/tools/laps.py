@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 from langchain_core.tools import BaseTool, tool
 from neo4j import Driver
 
-from pitwall.agent.tools.common import SessionType, lap_time, output
+from pitwall.agent.tools.common import SessionType, lap_time, output, traced
 from pitwall.graph.query import read_rows
 from pitwall.graph.resolve import resolve_driver, resolve_race
 from pitwall.telemetry.compare import as_rows, corner_gains, gap
@@ -49,6 +49,7 @@ def lap_tools(
         return rows[0]
 
     @tool(response_format="content_and_artifact")
+    @traced
     def find_lap(
         driver_name: Annotated[str, "Driver name, surname or 3-letter code"],
         race: Annotated[str, "Race name, circuit, country, round number, or 'latest'"],
@@ -73,6 +74,7 @@ def lap_tools(
         return output("lap", lap)
 
     @tool(response_format="content_and_artifact")
+    @traced
     async def compare_laps(
         lap_a: Annotated[str, "lap_id from find_lap"], lap_b: Annotated[str, "lap_id from find_lap"]
     ):

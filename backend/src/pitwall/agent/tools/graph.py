@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 from langchain_core.tools import BaseTool, tool
 from neo4j import Driver
 
-from pitwall.agent.tools.common import SessionType, lap_time, output
+from pitwall.agent.tools.common import SessionType, lap_time, output, traced
 from pitwall.graph.query import read_rows, run_untrusted
 from pitwall.graph.resolve import resolve_driver, resolve_race
 
@@ -92,6 +92,7 @@ def graph_tools(driver: Driver, season: int) -> list[BaseTool]:
         return _tidy(read_rows(driver, cypher, season=season, **params))
 
     @tool(response_format="content_and_artifact")
+    @traced
     def session_results(
         race: Annotated[str, "Race name, circuit, country, round number, or 'latest'"],
         session: SessionType = "R",
@@ -101,6 +102,7 @@ def graph_tools(driver: Driver, season: int) -> list[BaseTool]:
         return output("rows", rows(SESSION_RESULTS, race_id=race_id, type=session))
 
     @tool(response_format="content_and_artifact")
+    @traced
     def driver_season(
         driver_name: Annotated[str, "Driver name, surname or 3-letter code"],
         session: SessionType = "R",
@@ -110,23 +112,27 @@ def graph_tools(driver: Driver, season: int) -> list[BaseTool]:
         return output("rows", rows(DRIVER_SEASON, driver_id=driver_id, type=session))
 
     @tool(response_format="content_and_artifact")
+    @traced
     def standings(by: Literal["driver", "team"] = "driver"):
         """Championship standings so far: points from races and sprints, plus race wins."""
         return output("rows", rows(STANDINGS, by=by))
 
     @tool(response_format="content_and_artifact")
+    @traced
     def teammate_battle(driver_name: Annotated[str, "Driver name, surname or 3-letter code"]):
         """Head-to-head against each teammate: [driver, teammate] wins and the qualifying gap %."""
         driver_id = resolve_driver(driver, driver_name)
         return output("h2h", rows(TEAMMATE_BATTLE, driver_id=driver_id))
 
     @tool(response_format="content_and_artifact")
+    @traced
     def driver_teams(driver_name: Annotated[str, "Driver name, surname or 3-letter code"]):
         """The teams a driver raced for this season, with round ranges (mid-season moves)."""
         driver_id = resolve_driver(driver, driver_name)
         return output("stints", rows(DRIVER_TEAMS, driver_id=driver_id))
 
     @tool(response_format="content_and_artifact")
+    @traced
     def session_laps(
         race: Annotated[str, "Race name, circuit, country, round number, or 'latest'"],
         session: SessionType,
@@ -148,6 +154,7 @@ def graph_tools(driver: Driver, season: int) -> list[BaseTool]:
         return output("rows", found)
 
     @tool(response_format="content_and_artifact")
+    @traced
     def run_cypher(query: Annotated[str, "One read-only Cypher query that follows the schema"]):
         """Fallback for questions no other tool answers. Read-only, max 200 rows, 5 s timeout."""
         return output("rows", _tidy(run_untrusted(driver, query)))

@@ -1,6 +1,10 @@
 """Read-only access to the graph: trusted templates and guarded LLM-written Cypher."""
 
 import re
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any
 
 from neo4j import READ_ACCESS, Driver, ManagedTransaction, unit_of_work
@@ -16,6 +20,25 @@ DENYLIST = re.compile(r"\bLOAD\s+CSV\b|\bCALL\s+\w|\bapoc\.|\bPROFILE\b|\bEXPLAI
 
 class UnsafeCypher(ValueError):
     pass
+
+
+_log: ContextVar[list[dict[str, Any]] | None] = ContextVar("cypher_log", default=None)
+
+
+@contextmanager
+def recording() -> Iterator[list[dict[str, Any]]]:
+    """Collect every query run in this context, for the agent trace."""
+    token = _log.set([])
+    try:
+        yield _log.get()
+    finally:
+        _log.reset(token)
+
+
+def _record(cypher: str, params: dict[str, Any], rows: int, started: float) -> None:
+    if (log := _log.get()) is not None:
+        ms = round((time.perf_counter() - started) * 1000, 1)
+        log.append({"cypher": cypher.strip(), "params": params, "rows": rows, "ms": ms})
 
 
 def plain(value: Any) -> Any:
@@ -44,8 +67,11 @@ def _fetch(tx: ManagedTransaction, cypher: str, params: dict[str, Any]) -> list[
 
 def read_rows(driver: Driver, cypher: str, **params: Any) -> list[dict[str, Any]]:
     """Run a query in a read transaction: the server rejects any write."""
+    started = time.perf_counter()
     with driver.session(default_access_mode=READ_ACCESS) as session:
-        return session.execute_read(_fetch, cypher, params)
+        rows = session.execute_read(_fetch, cypher, params)
+    _record(cypher, params, len(rows), started)
+    return rows
 
 
 def run_untrusted(driver: Driver, cypher: str) -> list[dict[str, Any]]:
@@ -56,4 +82,7 @@ def run_untrusted(driver: Driver, cypher: str) -> list[dict[str, Any]]:
         query_type = session.run(f"EXPLAIN {cypher}").consume().query_type
         if query_type != "r":
             raise UnsafeCypher(f"only read queries are allowed, this one is '{query_type}'")
-        return session.execute_read(_fetch, cypher, {})
+        started = time.perf_counter()
+        rows = session.execute_read(_fetch, cypher, {})
+    _record(cypher, {}, len(rows), started)
+    return rows

@@ -27,5 +27,6 @@ curl -N localhost:8000/ask -H 'content-type: application/json' \
 ```
 
 The response is a stream of Server-Sent Events: `start`, `step` (planner tool calls), `tool`
-(results), `block` (answer blocks: text, components, chips) and `done`. Send the `thread_id`
+(results), `block` (answer blocks: text, components, chips) and `done` (tokens and cost in USD).
+Send the `thread_id`
 from `start` with the next question to continue the conversation.

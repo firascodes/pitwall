@@ -11,6 +11,9 @@ from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage, ToolMessage
 from pydantic import BaseModel, Field
 
+from pitwall.agent.cost import CostMeter
+from pitwall.config import get_settings
+
 log = logging.getLogger(__name__)
 router = APIRouter()
 PREVIEW_CHARS = 300
@@ -43,9 +46,9 @@ def step_events(node: str, update: dict[str, Any]) -> Iterator[tuple[str, Any]]:
             yield "block", block
 
 
-async def stream(agent: Any, question: str, thread_id: str) -> AsyncIterator[str]:
+async def stream(agent: Any, question: str, thread_id: str, meter: CostMeter) -> AsyncIterator[str]:
     yield sse("start", {"thread_id": thread_id})
-    config = {"configurable": {"thread_id": thread_id}}
+    config = {"configurable": {"thread_id": thread_id}, "callbacks": [meter]}
     try:
         updates = agent.astream(
             {"messages": [HumanMessage(question)]}, config, stream_mode="updates"
@@ -57,7 +60,9 @@ async def stream(agent: Any, question: str, thread_id: str) -> AsyncIterator[str
     except Exception:
         log.exception("agent run failed for thread %s", thread_id)
         yield sse("error", {"message": "The agent failed on this question. Try again."})
-    yield sse("done", {})
+    usage = meter.report()
+    log.info("thread %s cost $%.6f over %d LLM calls", thread_id, usage["usd"], usage["llm_calls"])
+    yield sse("done", {"usage": usage})
 
 
 @router.post("/ask")
@@ -66,6 +71,8 @@ async def ask(body: Ask, request: Request) -> StreamingResponse:
     if agent is None:
         raise HTTPException(503, "The agent is not configured (PITWALL_OPENAI_API_KEY).")
     thread_id = body.thread_id or uuid.uuid4().hex
+    s = get_settings()
+    meter = CostMeter(s.llm_input_usd_per_mtok, s.llm_output_usd_per_mtok)
     return StreamingResponse(
-        stream(agent, body.question, thread_id), media_type="text/event-stream"
+        stream(agent, body.question, thread_id, meter), media_type="text/event-stream"
     )

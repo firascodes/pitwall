@@ -32,6 +32,7 @@ def test_ask_streams_steps_then_blocks() -> None:
     assert got[0][1] == {"thread_id": "t1"}
     assert got[1][1]["tool_calls"] == [{"name": "standings", "args": {}}]
     assert got[4][1]["text"] == "Russell leads [r1]."
+    assert got[5][1]["usage"]["usd"] == 0.0
 
 
 def test_ask_without_an_llm_key_is_unavailable() -> None:

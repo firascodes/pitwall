@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     llm_model: str = "gpt-6-luna"  # smallest current OpenAI model with tool calling
     llm_reasoning_effort: str = "low"
+    llm_input_usd_per_mtok: float = 0.10  # gpt-6-luna list price
+    llm_output_usd_per_mtok: float = 0.50
     agent_max_tool_calls: int = 6
 
     @property

@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     llm_input_usd_per_mtok: float = 0.10  # gpt-6-luna list price
     llm_output_usd_per_mtok: float = 0.50
     agent_max_tool_calls: int = 6
+    daily_usd_cap: float = 0.25  # the public demo stops answering after this much spend per day
+    ask_per_minute: int = 5
+    cors_origins: list[str] = ["http://localhost:3000"]
 
     @property
     def fastf1_cache_dir(self) -> Path:

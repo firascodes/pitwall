@@ -3,12 +3,14 @@ from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from pitwall import __version__
 from pitwall.api import ask, laps
+from pitwall.api.limits import DailyBudget, RateLimiter
 from pitwall.config import get_settings
 from pitwall.graph.db import connect
 from pitwall.telemetry.locks import postgres_lock
@@ -47,6 +49,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Pit Wall API", version=__version__, lifespan=lifespan)
+app.state.budget = DailyBudget(get_settings().daily_usd_cap)
+app.state.limiter = RateLimiter(get_settings().ask_per_minute)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_settings().cors_origins,
+    allow_methods=["GET", "POST"],
+    allow_headers=["content-type"],
+)
 app.include_router(ask.router)
 app.include_router(laps.router)
 

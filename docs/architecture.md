@@ -314,7 +314,7 @@ composer output (typed JSON, streamed block by block)
 │ corner_table source: tool#2   top: 3                      │
 │ chips       ["Show their Q2 laps", "Who was faster in R?"]│
 └──────────────────────────────────────────────────────────┘
-        │ SSE: one event per block
+        │ SSE: one event per block, then done {usage: tokens, usd}
         ▼
 web: component registry  ──▶  PixiJS replay, uPlot chart, table, buttons
 telegram: text fallback  ──▶  message + inline buttons + "Open replay" (Mini App)
@@ -655,7 +655,7 @@ CI/CD: GitHub Actions. Steps: lint (**ruff**), types (**mypy** or **pyright**), 
 ### ADR-010: OpenAI gpt-6-luna for the planner and the composer
 - **Context.** The agent needs tool calling and strict structured output (ADR-009). Cost must stay low for a public demo.
 - **Decision.** `gpt-6-luna`: the smallest model of OpenAI's current family. $0.10 / $0.50 per million input / output tokens, 1M context, tool calling and structured output. Reasoning effort `low`. Responses API (Chat Completions allows function calling only with reasoning effort `none`).
-- **Consequences.** A question costs approx. 2 to 8 LLM calls (planner loop + composer), a fraction of a cent. The model is configured by `PITWALL_LLM_MODEL`, so the eval set can compare models later.
+- **Consequences.** A question costs approx. 2 to 8 LLM calls (planner loop + composer), a fraction of a cent. Measured: a lap comparison is 4 calls, approx. 5,900 input and 380 output tokens, $0.0008. A `CostMeter` callback sums the usage of every call, and the `done` event reports it. The model is configured by `PITWALL_LLM_MODEL`, so the eval set can compare models later.
 
 ### Open decisions (decide before Phase 2)
 - ~~LLM provider~~ Decided: OpenAI **gpt-6-luna** (ADR-010). Compare with others on the eval set later.
@@ -676,7 +676,7 @@ Approach: a **walking skeleton** (the thinnest version of the full system that r
 | 0 | Data spike ✅ | Done for qualifying: [report](spikes/2026-telemetry.md). Race/sprint size and Jev latency still open. |
 | 1 | Ingest → Neo4j ✅ | 2026 Q, Sprint, Race results, stints, TEAMMATE_OF, circuits in the graph. Run it two times: no duplicates. |
 | 2 | Laps + telemetry ✅ | Every lap in the graph. Hot-set push laps in Parquet. Lazy load + single-flight + advisory lock for other laps. |
-| 3 | LangGraph agent ✅ | Graph tools (templates + safe Text2Cypher) and telemetry tools. Hybrid answers that cite sources. `/ask` streams over SSE. Live check with the OpenAI key still to do. |
+| 3 | LangGraph agent ✅ | Graph tools (templates + safe Text2Cypher) and telemetry tools. Hybrid answers that cite sources. `/ask` streams over SSE, and `done` reports the tokens and cost of the answer. Live check passed: a Singapore Q3 lap comparison takes 4 LLM calls and costs $0.0008. |
 | 4 | Pixel-retro web UI | Chat, live agent-trace panel, lap replay with ghost car, corner-by-corner delta |
 | 5 | Telegram bot | Text questions. "Open replay" button opens the Mini App. |
 | 6 | Evals v1 + CI | 2025 golden sets: graph Q&A (execution accuracy), lap selection, tool trajectory. Ablation: vector-only vs Text2Cypher vs templates. Runs in GitHub Actions. |

@@ -55,9 +55,13 @@ class Source:
 
 
 def _replay(kind: Kind, data: Any) -> dict[str, Any]:
-    if kind == "lap":
-        return {"laps": [data["lap_id"]], "ghost": False}
-    return {"laps": [data["a"]["lap_id"], data["b"]["lap_id"]], "ghost": True}
+    laps = [data] if kind == "lap" else [data["a"], data["b"]]
+    return {
+        "laps": [lap["lap_id"] for lap in laps],
+        "drivers": [lap["driver"] for lap in laps],
+        "times": [lap["time"] for lap in laps],
+        "ghost": kind == "lap_compare",
+    }
 
 
 FILL: dict[str, Callable[[Kind, Any], Any]] = {

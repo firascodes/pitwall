@@ -37,6 +37,8 @@ def test_components_are_filled_from_the_referenced_tool_result() -> None:
     assert [b["type"] for b in blocks] == ["text", "lap_replay", "delta_chart", "chips"]
     assert blocks[1]["data"] == {
         "laps": [COMPARE["a"]["lap_id"], COMPARE["b"]["lap_id"]],
+        "drivers": ["Lewis Hamilton", "Charles Leclerc"],
+        "times": ["1:31.496", "1:31.512"],
         "ghost": True,
     }
     assert blocks[2]["data"]["b_behind_a_s"] == [0.0, 0.01]

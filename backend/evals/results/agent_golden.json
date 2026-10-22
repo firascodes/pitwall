@@ -1,0 +1,143 @@
+{
+  "name": "agent_golden",
+  "model": "gpt-6-luna",
+  "cases": 8,
+  "pass_rate": 1.0,
+  "tool_accuracy": 1.0,
+  "fact_accuracy": 1.0,
+  "component_accuracy": 1.0,
+  "usd_total": 0.003841,
+  "p50_seconds": 5.2,
+  "p95_seconds": 9.2,
+  "results": [
+    {
+      "question": "Who leads the drivers' championship?",
+      "pass": true,
+      "tools": true,
+      "facts": true,
+      "components": true,
+      "called": [
+        "standings"
+      ],
+      "shown": [],
+      "usd": 0.000443,
+      "llm_calls": 3,
+      "seconds": 5.2,
+      "answer": "andrea kimi antonelli leads the drivers\u2019 championship with 340 points. [r1]"
+    },
+    {
+      "question": "Which team leads the constructors' championship?",
+      "pass": true,
+      "tools": true,
+      "facts": true,
+      "components": true,
+      "called": [
+        "standings"
+      ],
+      "shown": [],
+      "usd": 0.000382,
+      "llm_calls": 3,
+      "seconds": 5.0,
+      "answer": "mercedes leads the constructors\u2019 championship with 578 points. [r1]"
+    },
+    {
+      "question": "Who took pole position in Monaco, and with what time?",
+      "pass": true,
+      "tools": true,
+      "facts": true,
+      "components": true,
+      "called": [
+        "session_results"
+      ],
+      "shown": [],
+      "usd": 0.000576,
+      "llm_calls": 3,
+      "seconds": 5.2,
+      "answer": "andrea kimi antonelli took pole position in monaco with a q3 time of **1:12.051**. [r1]"
+    },
+    {
+      "question": "Who won the Singapore Grand Prix?",
+      "pass": true,
+      "tools": true,
+      "facts": true,
+      "components": true,
+      "called": [
+        "session_results"
+      ],
+      "shown": [],
+      "usd": 0.000523,
+      "llm_calls": 3,
+      "seconds": 5.0,
+      "answer": "max verstappen won the singapore grand prix. [r1]"
+    },
+    {
+      "question": "What is Antonelli's qualifying head-to-head against Russell?",
+      "pass": true,
+      "tools": true,
+      "facts": true,
+      "components": true,
+      "called": [
+        "teammate_battle"
+      ],
+      "shown": [
+        "h2h_card"
+      ],
+      "usd": 0.000366,
+      "llm_calls": 3,
+      "seconds": 5.2,
+      "answer": "antonelli leads russell **10\u20137** in qualifying [r1]."
+    },
+    {
+      "question": "Which teams has Liam Lawson driven for this season?",
+      "pass": true,
+      "tools": true,
+      "facts": true,
+      "components": true,
+      "called": [
+        "driver_teams"
+      ],
+      "shown": [],
+      "usd": 0.000373,
+      "llm_calls": 3,
+      "seconds": 5.3,
+      "answer": "liam lawson drove for **rb f1 team** and **red bull** this season. [r1]"
+    },
+    {
+      "question": "How many laps were deleted in Monza qualifying?",
+      "pass": true,
+      "tools": true,
+      "facts": true,
+      "components": true,
+      "called": [
+        "session_laps"
+      ],
+      "shown": [],
+      "usd": 0.000387,
+      "llm_calls": 3,
+      "seconds": 5.4,
+      "answer": "three laps were deleted in monza qualifying [r1]."
+    },
+    {
+      "question": "Compare Hamilton and Leclerc's fastest laps in Singapore qualifying",
+      "pass": true,
+      "tools": true,
+      "facts": true,
+      "components": true,
+      "called": [
+        "find_lap",
+        "find_lap",
+        "compare_laps"
+      ],
+      "shown": [
+        "corner_table",
+        "delta_chart",
+        "lap_replay"
+      ],
+      "usd": 0.000791,
+      "llm_calls": 4,
+      "seconds": 9.2,
+      "answer": "leclerc was **0.069s faster**, setting a **1:31.427** to hamilton\u2019s **1:31.496**. both laps were on softs in q3 with tyre age 1; leclerc gained time at t3 and t2, while hamilton gained most at t16. [r1] [r2] [r3]"
+    }
+  ],
+  "ran_at": "2026-10-21T14:26:50+00:00"
+}

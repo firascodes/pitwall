@@ -218,7 +218,7 @@ You can use Supabase for this Postgres. You already know its tools.
 | Agent framework | **LangGraph** | Explicit state machine, checkpointing, streaming (see ADR-003) |
 | Graph access | Official `neo4j` driver + **`neo4j-graphrag`** | Ready retrievers: Vector, Hybrid, VectorCypher, Text2Cypher |
 | Telemetry analysis | OpenF1 + NumPy + Polars (DuckDB later) | |
-| Telegram | **aiogram** (async) in **webhook** mode | Webhook: Telegram calls your server. Better than **long polling** in production. |
+| Telegram | The Bot API over **httpx**, in **webhook** mode (polling for local dev) | Webhook: Telegram calls your server. Four API methods do not need a framework (ADR-012). |
 | Background jobs | A worker process with a scheduler (APScheduler or cron) | Ingest after each session |
 
 **Term: SSE (Server-Sent Events).** One-way streaming from server to browser over HTTP. The backend uses SSE to stream agent steps and answer tokens. It is simpler than **WebSockets** when the client does not need to stream data back. Voice uses WebSockets because audio goes in both directions.
@@ -530,8 +530,8 @@ Rule: set confidence **thresholds** from eval data, not by guessing. Jev's docs 
 | Concern | Choice | Reason |
 |---|---|---|
 | Framework | **Next.js** (TypeScript) | You know it. Good on Vercel. |
-| Replay renderer | **PixiJS** | WebGL. Fast 2D sprites. Good for pixel art. |
-| Charts | **uPlot** | Handles many points. Small. |
+| Replay renderer | **Canvas 2D** | Two cars on one track need no WebGL. Pixel look from integer coordinates (ADR-011). |
+| Charts | Hand-written **SVG** | One delta line of ~200 points. No chart library needed (ADR-011). |
 | Graph view | **Sigma.js** or Neo4j **NVL** | Shows the "why" path of a graph answer |
 | Streaming | SSE client for agent steps; WebSocket for voice | |
 | Style | Pit-wall / timing-screen look: dark background, monospace and pixel fonts, team colours, sector colours (purple, green, yellow) | Familiar to F1 tech people |
@@ -573,6 +573,8 @@ Tools: **pytest** for the test runner. **Langfuse** (or LangSmith) for **traces*
 ---
 
 ## 14. Deployment
+
+**As built for v0.1 (ADR-013):** Vercel (web) · Render free, Docker (API and Telegram webhook) · AuraDB Free (graph) · Supabase (Postgres). Steps: [deploy.md](deploy.md). The table below is the plan for a paid VPS later.
 
 | Part | Where | Reason |
 |---|---|---|
@@ -657,6 +659,24 @@ CI/CD: GitHub Actions. Steps: lint (**ruff**), types (**mypy** or **pyright**), 
 - **Decision.** `gpt-6-luna`: the smallest model of OpenAI's current family. $0.10 / $0.50 per million input / output tokens, 1M context, tool calling and structured output. Reasoning effort `low`. Responses API (Chat Completions allows function calling only with reasoning effort `none`).
 - **Consequences.** A question costs approx. 2 to 8 LLM calls (planner loop + composer), a fraction of a cent. Measured: a lap comparison is 4 calls, approx. 5,900 input and 380 output tokens, $0.0008. A `CostMeter` callback sums the usage of every call, and the `done` event reports it. The model is configured by `PITWALL_LLM_MODEL`, so the eval set can compare models later.
 
+### ADR-011: Canvas 2D and SVG instead of PixiJS and uPlot
+
+- **Decision.** The replay draws on a Canvas 2D context. The delta chart is hand-written SVG.
+- **Reason.** A replay is one track line and two squares. A chart is one line of about 200 points. Both are small. A library would add weight and API surface for no gain.
+- **Consequence.** Move to PixiJS if replays get sprites, many cars or effects.
+
+### ADR-012: The Telegram Bot API directly, instead of aiogram
+
+- **Decision.** The bot calls four Bot API methods (`sendMessage`, `sendChatAction`, `answerCallbackQuery`, `setWebhook`) with httpx.
+- **Reason.** The bot is an **adapter**: it turns an update into the same agent run the web uses (`api.ask.run`). A framework would bring its own routing and state, which this adapter does not need.
+- **Consequence.** Webhook security is our code: Telegram sends the secret in `X-Telegram-Bot-Api-Secret-Token`, and the route compares it in constant time.
+
+### ADR-013: A free hosting stack for the showcase
+
+- **Decision.** Vercel for the web app, Render free (Docker) for the API, Neo4j AuraDB Free for the graph, Supabase for Postgres.
+- **Reason.** No monthly cost. The graph (approx. 29k nodes, 31k relationships) fits AuraDB Free (200k nodes, 400k relationships).
+- **Consequences.** Render free sleeps after 15 minutes: the web app sends a warm-up ping on load and says "Waking the pit wall". The daily spend cap is stored in Postgres, so a restart cannot reset it. AuraDB Free pauses after 3 days with no queries. Telemetry is not shipped: the API loads laps from OpenF1 on first use and caches them on disk.
+
 ### Open decisions (decide before Phase 2)
 - ~~LLM provider~~ Decided: OpenAI **gpt-6-luna** (ADR-010). Compare with others on the eval set later.
 - Embedding model for documents.
@@ -677,11 +697,11 @@ Approach: a **walking skeleton** (the thinnest version of the full system that r
 | 1 | Ingest → Neo4j ✅ | 2026 Q, Sprint, Race results, stints, TEAMMATE_OF, circuits in the graph. Run it two times: no duplicates. |
 | 2 | Laps + telemetry ✅ | Every lap in the graph. Hot-set push laps in Parquet. Lazy load + single-flight + advisory lock for other laps. |
 | 3 | LangGraph agent ✅ | Graph tools (templates + safe Text2Cypher) and telemetry tools. Hybrid answers that cite sources. `/ask` streams over SSE, and `done` reports the tokens and cost of the answer. Live check passed: a Singapore Q3 lap comparison takes 4 LLM calls and costs $0.0008. |
-| 4 | Pixel-retro web UI | Chat, live agent-trace panel, lap replay with ghost car, corner-by-corner delta |
-| 5 | Telegram bot | Text questions. "Open replay" button opens the Mini App. |
-| 6 | Evals v1 + CI | 2025 golden sets: graph Q&A (execution accuracy), lap selection, tool trajectory. Ablation: vector-only vs Text2Cypher vs templates. Runs in GitHub Actions. |
-| 7 | Deploy | VPS (Docker Compose) + Vercel. Live link works for a stranger. |
-| 8 | README + demo | Architecture diagram, eval table, 90-second video, GIF of the replay |
+| 4 | Pixel-retro web UI ✅ | Next.js app in `web/`. Chat, agent trace with every Cypher query, lap replay with ghost car, delta chart, corner table, graph cards, light/dark, usage popover, cost per answer. |
+| 5 | Telegram bot ✅ | `pitwall/telegram`. Text questions, follow-up buttons, cost per answer. "Open lap replay" opens `/replay` as a Mini App. |
+| 6 | Evals v1 + CI ✅ | `pitwall-eval laps`: 99% (198/200). `pitwall-eval agent`: 8/8 golden questions on tools, facts and components, $0.0038 per run. CI runs lint, tests and the web build. Evals run locally because CI has no loaded graph. The ablation and 2025 sets move to v1.1. |
+| 7 | Deploy | Free stack: Vercel (web), Render (API, Docker), AuraDB Free (graph), Supabase (Postgres). See [deploy.md](deploy.md). |
+| 8 | README + demo | README with logo, architecture, Neo4j usage, eval table and screenshots ✅. Video and replay GIF still to record. |
 
 ### v1.1: agent quality
 - Jev router fast path with confidence gate. Measured latency and accuracy, before and after.
@@ -706,6 +726,7 @@ Approach: a **walking skeleton** (the thinnest version of the full system that r
 - **Monaco race positions (2026 R6).** OpenF1's `location` feed for this race stops at 14:00 UTC, about an hour in. Lap rows are complete (1,452 laps), but no race lap after that point can be replayed. Car data (speed, gear, throttle) is complete. The API returns "no position data for this lap" and the agent says so.
 - **Start times disagree across sources.** Miami 2026 race: 17:00 UTC in OpenF1, 20:00 UTC in Jolpica. Sessions are matched to the nearest same-type session within 24 hours, not by exact time.
 - **Corner layouts can be older than the season.** MultiViewer answered the 2026 Singapore request with its 2023 layout (the newest it has). Corners still land within 3 m of 2026 racing lines. A circuit with a changed layout would need a check.
+- **Lap selection misses (2 of 200).** 2026 R6 Ocon: his official best is not among the push laps. 2026 R9 Alonso: a lap faster than his official best is not flagged as deleted in OpenF1. Both are source-data gaps; `find_lap` follows the data.
 - **Laps with no start time.** OpenF1 sometimes has `date_start = null` (seen in 2026 R3 qualifying). These laps stay in the graph but are never pre-rendered, because there is no telemetry window.
 
 ## 18. Glossary (quick reference)

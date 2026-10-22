@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ask, wake } from "@/lib/api";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ApiError, ask, getQuota, type Quota, wake } from "@/lib/api";
+import { signOut, useSession } from "@/lib/auth";
 import { loadTheme, loadThreads, saveTheme, saveThreads } from "@/lib/store";
 import type { AskEvent, Thread, Turn } from "@/lib/types";
 import { Answer } from "./Answer";
 import { Sidebar } from "./Sidebar";
+import { SignIn } from "./SignIn";
 
 const EXAMPLES = [
   "Compare Hamilton and Leclerc's fastest laps in Singapore qualifying",
@@ -44,15 +47,39 @@ export function Chat() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [menu, setMenu] = useState(false);
   const [awake, setAwake] = useState(false);
+  const [quota, setQuota] = useState<Quota | null>(null);
+  const [signIn, setSignIn] = useState<"guest_limit" | "nav" | null>(null);
   const feed = useRef<HTMLDivElement>(null);
+  const asked = useRef(false);
+  const params = useSearchParams();
+  const router = useRouter();
+  const session = useSession();
+  const token = session?.access_token;
   const thread = threads[active];
+  const locked = !!quota?.auth && !quota.signed_in && quota.used >= quota.limit;
+
+  const refreshQuota = useCallback(() => getQuota(token).then(setQuota), [token]);
+  useEffect(() => {
+    refreshQuota();
+    if (session) setSignIn(null);
+  }, [refreshQuota, session]);
 
   useEffect(() => {
     const saved = loadThreads();
     if (saved.length) setThreads([blank(), ...saved.filter((t) => t.turns.length)]);
     setTheme(loadTheme());
     wake().then(setAwake);
-  }, []);
+    if (params.get("signin")) setSignIn("nav");
+  }, [params]);
+
+  // A question typed on the landing page arrives as ?q=
+  useEffect(() => {
+    const q = params.get("q");
+    if (!q || asked.current) return;
+    asked.current = true;
+    router.replace("/chat");
+    send(q);
+  });
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -72,6 +99,7 @@ export function Chat() {
   async function send(question: string) {
     const q = question.trim();
     if (!q || running) return;
+    if (locked) return setSignIn("guest_limit");
     const i = active;
     const turn: Turn = { id: crypto.randomUUID(), question: q, tools: [], blocks: [], startedAt: Date.now() };
     const patch = (fn: (t: Turn) => Turn) =>
@@ -81,17 +109,24 @@ export function Chat() {
     setRunning(true);
     let step = 0;
     try {
-      await ask(q, thread.id, (e) => {
-        setAwake(true);
-        if (e.event === "start") update(i, (t) => ({ ...t, id: e.data.thread_id }));
-        if (e.event === "step") step++;
-        patch((u) => apply(u, e, step));
-      });
+      await ask(
+        q,
+        thread.id,
+        (e) => {
+          setAwake(true);
+          if (e.event === "start") update(i, (t) => ({ ...t, id: e.data.thread_id }));
+          if (e.event === "step") step++;
+          patch((u) => apply(u, e, step));
+        },
+        token,
+      );
     } catch (err) {
+      if (err instanceof ApiError && err.code === "guest_limit") setSignIn("guest_limit");
       patch((u) => ({ ...u, error: (err as Error).message, endedAt: Date.now() }));
     } finally {
       patch((u) => (u.endedAt ? u : { ...u, endedAt: Date.now() }));
       setRunning(false);
+      refreshQuota();
     }
   }
 
@@ -108,6 +143,10 @@ export function Chat() {
         threads={threads}
         active={active}
         open={menu}
+        quota={quota}
+        email={session?.user.email ?? null}
+        onSignIn={() => setSignIn("nav")}
+        onSignOut={() => signOut()}
         onNew={newThread}
         onPick={(i) => {
           setActive(i);
@@ -181,6 +220,12 @@ export function Chat() {
           )}
         </div>
         <div className="composer">
+          {locked ? (
+            <button className="locked" onClick={() => setSignIn("guest_limit")}>
+              Sign in to ask another question
+              <span className="send px">Sign in</span>
+            </button>
+          ) : (
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -198,8 +243,10 @@ export function Chat() {
               Box box
             </button>
           </form>
+          )}
         </div>
       </main>
+      <SignIn open={signIn !== null} reason={signIn ?? undefined} onClose={() => setSignIn(null)} />
     </div>
   );
 }

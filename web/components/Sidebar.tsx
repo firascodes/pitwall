@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getDemoUsage, type DemoUsage } from "@/lib/api";
+import { getDemoUsage, type DemoUsage, type Quota } from "@/lib/api";
 import { usd } from "@/lib/format";
 import type { Thread } from "@/lib/types";
 
@@ -9,9 +9,51 @@ type Props = {
   threads: Thread[];
   active: number;
   open: boolean;
+  quota: Quota | null;
+  email: string | null;
   onPick: (i: number) => void;
   onNew: () => void;
+  onSignIn: () => void;
+  onSignOut: () => void;
 };
+
+function Account({ quota, email, onSignIn, onSignOut }: Pick<Props, "quota" | "email" | "onSignIn" | "onSignOut">) {
+  if (!quota?.auth) return null;
+  if (email)
+    return (
+      <div className="account">
+        <span title={email}>{email}</span>
+        <span className="mono dim">
+          {quota.limit - quota.used} of {quota.limit} left today
+        </span>
+        <button className="dim" onClick={onSignOut}>
+          Sign out
+        </button>
+      </div>
+    );
+  const left = Math.max(0, quota.limit - quota.used);
+  return (
+    <>
+      <div className="guest">
+        <div className="kv">
+          <span className="px">Guest</span>
+          <b>
+            {left} of {quota.limit} left
+          </b>
+        </div>
+        <div className="meter">
+          <div style={{ width: `${(left / quota.limit) * 100}%` }} />
+        </div>
+        <span className="muted" style={{ fontSize: 13 }}>
+          Sign in for 30 questions a day.
+        </span>
+      </div>
+      <button className="send px" style={{ height: 40 }} onClick={onSignIn}>
+        Sign in
+      </button>
+    </>
+  );
+}
 
 function Usage({ threads }: { threads: Thread[] }) {
   const [open, setOpen] = useState(false);
@@ -88,10 +130,12 @@ function Usage({ threads }: { threads: Thread[] }) {
   );
 }
 
-export function Sidebar({ threads, active, open, onPick, onNew }: Props) {
+export function Sidebar({ threads, active, open, onPick, onNew, ...account }: Props) {
   return (
     <aside className={`sidebar${open ? " open" : ""}`}>
-      <img className="logo" src="/pitwall-logo.svg" alt="Pitwall" width={200} height={137} />
+      <a href="/" aria-label="Pitwall home">
+        <img className="logo" src="/pitwall-logo.svg" alt="Pitwall" width={200} height={137} />
+      </a>
       <button className="btn-retro px" onClick={onNew}>
         <svg width="10" height="10" shapeRendering="crispEdges" aria-hidden>
           <rect x="4" y="0" width="2" height="10" fill="currentColor" />
@@ -110,6 +154,7 @@ export function Sidebar({ threads, active, open, onPick, onNew }: Props) {
             ),
         )}
       </nav>
+      <Account {...account} />
       <Usage threads={threads} />
     </aside>
   );

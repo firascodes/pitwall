@@ -1,0 +1,20 @@
+{
+  "name": "lap_selection",
+  "cases": 200,
+  "accuracy": 0.99,
+  "misses": [
+    {
+      "race_id": "2026-06",
+      "driver_id": "ocon",
+      "official_ms": 74722,
+      "find_lap_ms": 74969
+    },
+    {
+      "race_id": "2026-09",
+      "driver_id": "alonso",
+      "official_ms": 93025,
+      "find_lap_ms": 92888
+    }
+  ],
+  "ran_at": "2026-10-21T14:24:33+00:00"
+}

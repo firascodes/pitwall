@@ -21,6 +21,7 @@ An agent on a Neo4j knowledge graph and real telemetry. Every answer shows the C
 - **Answers from a knowledge graph.** "What is Antonelli's qualifying head-to-head against Russell?" becomes Cypher on Neo4j. The answer cites the rows it came from.
 - **Replays real laps.** "Compare Hamilton and Leclerc in Singapore qualifying" rebuilds both laps from OpenF1 telemetry: a pixel replay with a ghost car, the gap through the lap, and the corners where time was won.
 - **Shows its work.** The trace lists every tool call and every Cypher query, with its parameters, row count and time. Each answer shows its LLM cost (about $0.0008 for a lap comparison).
+- **Free to try.** Ask one question as a guest. Sign in with Google, GitHub or an email link for 30 a day. A daily spend cap in Postgres protects the LLM budget.
 - **Runs on Telegram too.** The same agent answers in chat, and "Open lap replay" opens the replay as a Telegram Mini App.
 
 ## Architecture
@@ -85,7 +86,7 @@ That makes 8 queries, each between 10 and 60 ms. The web trace shows every one:
 | `pitwall-eval agent` | 8 golden questions: right tools called, right facts in the answer, right components | **8/8**: tools 100%, facts 100%, components 100% |
 | Cost and latency | the same 8 questions, gpt-6-luna | $0.0038 total · p50 5.2 s · p95 9.2 s |
 
-The evals run against the full graph, so they run locally (`backend/evals/results`). CI runs lint, 70 tests and the web build.
+The evals run against the full graph, so they run locally (`backend/evals/results`). CI runs lint, 74 tests and the web build.
 
 ## Run it locally
 

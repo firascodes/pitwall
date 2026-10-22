@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000"]
     web_url: str = "http://localhost:3000"  # the Telegram Mini App opens replays here
     api_url: str = "http://localhost:8000"  # public URL of this API, for the Telegram webhook
+    supabase_url: str | None = None  # set it to require sign-in after the guest question
+    ip_salt: SecretStr = SecretStr("pitwall-dev-salt")  # guests are keyed by a salted IP hash
+    guest_daily_questions: int = 1
+    user_daily_questions: int = 30
     telegram_bot_token: SecretStr | None = None
     telegram_webhook_secret: SecretStr | None = None
 

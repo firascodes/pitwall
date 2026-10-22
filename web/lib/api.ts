@@ -2,22 +2,34 @@ import type { AskEvent } from "./types";
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
+/** An API refusal; `code` is set for quota limits so the UI can offer sign-in. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly code?: "guest_limit" | "user_limit",
+  ) {
+    super(message);
+  }
+}
+
+const bearer = (token?: string): Record<string, string> => (token ? { authorization: `Bearer ${token}` } : {});
+
 /** POST /ask and call onEvent for each Server-Sent Event (EventSource cannot POST). */
 export async function ask(
   question: string,
   threadId: string | null,
   onEvent: (e: AskEvent) => void,
-  signal?: AbortSignal,
+  token?: string,
 ): Promise<void> {
   const res = await fetch(`${API_URL}/ask`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...bearer(token) },
     body: JSON.stringify({ question, thread_id: threadId }),
-    signal,
   });
   if (!res.ok || !res.body) {
-    const detail = await res.json().catch(() => null);
-    throw new Error(detail?.detail ?? `The pit wall is offline (HTTP ${res.status}).`);
+    const detail = (await res.json().catch(() => null))?.detail;
+    if (detail?.code) throw new ApiError(detail.message, detail.code);
+    throw new ApiError(typeof detail === "string" ? detail : `The pit wall is offline (HTTP ${res.status}).`);
   }
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
   let buffer = "";
@@ -72,4 +84,12 @@ export async function wake(): Promise<boolean> {
   return fetch(`${API_URL}/health`)
     .then((r) => r.ok)
     .catch(() => false);
+}
+
+export type Quota = { auth: boolean; signed_in: boolean; used: number; limit: number };
+
+export async function getQuota(token?: string): Promise<Quota | null> {
+  return fetch(`${API_URL}/quota`, { headers: bearer(token) })
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null);
 }

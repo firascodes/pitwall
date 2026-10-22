@@ -60,10 +60,11 @@ def step_events(node: str, update: dict[str, Any]) -> Iterator[tuple[str, Any]]:
             yield "block", block
 
 
-async def stream(
+async def run(
     agent: Any, question: str, thread_id: str, meter: CostMeter, budget: DailyBudget | None = None
-) -> AsyncIterator[str]:
-    yield sse("start", {"thread_id": thread_id})
+) -> AsyncIterator[tuple[str, Any]]:
+    """One agent run as (event, data) pairs: the web streams them, the bot collects them."""
+    yield "start", {"thread_id": thread_id}
     config = {"configurable": {"thread_id": thread_id}, "callbacks": [meter]}
     try:
         updates = agent.astream(
@@ -71,16 +72,26 @@ async def stream(
         )
         async for update in updates:
             for node, change in update.items():
-                for event, data in step_events(node, change):
-                    yield sse(event, data)
+                for event in step_events(node, change):
+                    yield event
     except Exception:
         log.exception("agent run failed for thread %s", thread_id)
-        yield sse("error", {"message": "The agent failed on this question. Try again."})
+        yield "error", {"message": "The agent failed on this question. Try again."}
     usage = meter.report()
     if budget is not None:
         budget.add(usage["usd"])
     log.info("thread %s cost $%.6f over %d LLM calls", thread_id, usage["usd"], usage["llm_calls"])
-    yield sse("done", {"usage": usage})
+    yield "done", {"usage": usage}
+
+
+async def stream(*args: Any) -> AsyncIterator[str]:
+    async for event, data in run(*args):
+        yield sse(event, data)
+
+
+def new_meter() -> CostMeter:
+    s = get_settings()
+    return CostMeter(s.llm_input_usd_per_mtok, s.llm_output_usd_per_mtok)
 
 
 @router.post("/ask")
@@ -94,10 +105,8 @@ async def ask(body: Ask, request: Request) -> StreamingResponse:
     if not request.app.state.limiter.allow(client_ip(request)):
         raise HTTPException(429, "Too many questions. Wait a minute and try again.")
     thread_id = body.thread_id or uuid.uuid4().hex
-    s = get_settings()
-    meter = CostMeter(s.llm_input_usd_per_mtok, s.llm_output_usd_per_mtok)
     return StreamingResponse(
-        stream(agent, body.question, thread_id, meter, budget), media_type="text/event-stream"
+        stream(agent, body.question, thread_id, new_meter(), budget), media_type="text/event-stream"
     )
 
 

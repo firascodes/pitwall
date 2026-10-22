@@ -24,6 +24,10 @@ services:
         sync: false
       - key: PITWALL_CORS_ORIGINS
         sync: false
+      - key: PITWALL_SUPABASE_URL
+        sync: false
+      - key: PITWALL_IP_SALT
+        generateValue: true
       - key: PITWALL_TELEGRAM_BOT_TOKEN
         sync: false
       - key: PITWALL_TELEGRAM_WEBHOOK_SECRET

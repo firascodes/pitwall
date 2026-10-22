@@ -29,6 +29,20 @@ AuraDB Free pauses after 3 days with no queries. Resume it in the console if the
 Create a project at <https://supabase.com/dashboard>. Under **Connect**, copy the **Session pooler** URI
 (port 5432). The direct URI is IPv6-only and Render cannot reach it. The API creates its own tables.
 
+### Sign-in (Supabase Auth)
+
+Guests get one question a day per network. Signed-in users get 30. To turn this on:
+
+1. **Authentication → URL Configuration:** set **Site URL** to the Vercel URL and add
+   `<Vercel URL>/chat` to **Redirect URLs**.
+2. **Authentication → Sign In / Providers:** Email is on by default (magic links). For Google and GitHub,
+   create an OAuth app with each provider, using the callback URL Supabase shows, then paste in the client ID and secret.
+3. **Project Settings → API Keys:** copy the **publishable** key (never the secret key) for Vercel.
+4. **Project Settings → JWT Keys:** make sure the project signs tokens with an asymmetric key (ECC P-256 is the
+   default on new projects). The API checks tokens against the project's JWKS.
+
+Without `PITWALL_SUPABASE_URL` the API runs open, which is how local development works.
+
 ## 3. Render (API)
 
 1. <https://dashboard.render.com> → **New** → **Blueprint** → pick the `pitwall` repo. Render reads `render.yaml`.
@@ -43,15 +57,23 @@ Create a project at <https://supabase.com/dashboard>. Under **Connect**, copy th
    | `PITWALL_API_URL` | `https://pitwall-api.onrender.com` (the service URL) |
    | `PITWALL_WEB_URL` | the Vercel URL from step 4 |
    | `PITWALL_CORS_ORIGINS` | `["<the Vercel URL>"]` (a JSON list) |
+   | `PITWALL_SUPABASE_URL` | `https://<ref>.supabase.co` (turns on the guest limit and sign-in) |
    | `PITWALL_TELEGRAM_BOT_TOKEN` | from step 5, or leave empty |
 
 3. Check `https://pitwall-api.onrender.com/health` returns `"agent": true`.
 
 ## 4. Vercel (web)
 
-<https://vercel.com/new> → import the repo → **Root Directory** `web` → add the environment variable
-`NEXT_PUBLIC_API_URL=https://pitwall-api.onrender.com` → **Deploy**. Then put the Vercel URL into
-`PITWALL_WEB_URL` and `PITWALL_CORS_ORIGINS` on Render.
+<https://vercel.com/new> → import the repo → **Root Directory** `web` → add these environment variables → **Deploy**:
+
+| Key | Value |
+|---|---|
+| `NEXT_PUBLIC_API_URL` | `https://pitwall-api.onrender.com` |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://<ref>.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | the publishable key |
+| `NEXT_PUBLIC_TELEGRAM_BOT` | the bot username, without `@` |
+
+Then put the Vercel URL into `PITWALL_WEB_URL` and `PITWALL_CORS_ORIGINS` on Render.
 
 ## 5. Telegram bot
 

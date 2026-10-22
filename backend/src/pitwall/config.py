@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     daily_usd_cap: float = 0.25  # the public demo stops answering after this much spend per day
     ask_per_minute: int = 5
     cors_origins: list[str] = ["http://localhost:3000"]
+    web_url: str = "http://localhost:3000"  # the Telegram Mini App opens replays here
+    api_url: str = "http://localhost:8000"  # public URL of this API, for the Telegram webhook
+    telegram_bot_token: SecretStr | None = None
+    telegram_webhook_secret: SecretStr | None = None
 
     @property
     def fastf1_cache_dir(self) -> Path:

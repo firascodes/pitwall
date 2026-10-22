@@ -9,9 +9,9 @@ from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from pitwall import __version__
-from pitwall.api import ask, laps
+from pitwall.api import ask, laps, telegram
 from pitwall.api.limits import DailyBudget, RateLimiter
-from pitwall.config import get_settings
+from pitwall.config import Settings, get_settings
 from pitwall.graph.db import connect
 from pitwall.telemetry.locks import postgres_lock
 from pitwall.telemetry.source import openf1_lap_loader
@@ -45,7 +45,32 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             app.state.agent = create_agent(s, graph, app.state.store, checkpointer)
         else:
             log.warning("PITWALL_OPENAI_API_KEY is not set: /ask is disabled")
+        app.state.bot = None
+        if app.state.agent is not None and s.telegram_bot_token:
+            await start_bot(app, s, stack)
         yield
+
+
+async def start_bot(app: FastAPI, s: Settings, stack: AsyncExitStack) -> None:
+    """Telegram channel: register the webhook (and the Mini App menu button) when public."""
+    from pitwall.telegram.bot import Bot
+    from pitwall.telegram.client import TelegramClient
+
+    client = TelegramClient(s.telegram_bot_token.get_secret_value())
+    stack.push_async_callback(client.close)
+    app.state.bot = Bot(client, app.state.agent, s.web_url, app.state.budget, app.state.limiter)
+    if s.telegram_webhook_secret and s.api_url.startswith("https://"):
+        await client.call(
+            "setWebhook",
+            url=f"{s.api_url.rstrip('/')}/telegram/webhook",
+            secret_token=s.telegram_webhook_secret.get_secret_value(),
+            allowed_updates=["message", "callback_query"],
+        )
+        await client.call(
+            "setChatMenuButton",
+            menu_button={"type": "web_app", "text": "Pitwall", "web_app": {"url": s.web_url}},
+        )
+        log.info("telegram webhook set to %s", s.api_url)
 
 
 app = FastAPI(title="Pit Wall API", version=__version__, lifespan=lifespan)
@@ -59,6 +84,7 @@ app.add_middleware(
 )
 app.include_router(ask.router)
 app.include_router(laps.router)
+app.include_router(telegram.router)
 
 
 @app.get("/health")

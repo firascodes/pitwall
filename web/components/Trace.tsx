@@ -56,13 +56,15 @@ function args(a: Record<string, unknown>) {
     .join(", ");
 }
 
-export function Trace({ tools, running, ms }: { tools: ToolCall[]; running: boolean; ms?: number }) {
+type Props = { tools: ToolCall[]; running: boolean; waking: boolean; ms?: number };
+
+export function Trace({ tools, running, waking, ms }: Props) {
   const [open, setOpen] = useState(false);
   const steps = [...new Set(tools.map((t) => t.step))];
   const queries = tools.reduce((n, t) => n + (t.queries?.length ?? 0), 0);
   const current = tools.findLast((t) => t.ok === undefined);
 
-  let summary = "Thinking…";
+  let summary = waking ? "Waking the pit wall (free server, up to a minute)…" : "Thinking…";
   if (running && current) summary = `Running ${current.name}…`;
   else if (!running) summary = tools.length ? `Checked ${plural(tools.length, "tool")} · ${plural(queries, "query")}` : "Answered from the conversation";
   if (!running && ms) summary += ` · ${seconds(ms)}`;

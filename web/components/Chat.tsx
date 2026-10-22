@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ask } from "@/lib/api";
+import { ask, wake } from "@/lib/api";
 import { loadTheme, loadThreads, saveTheme, saveThreads } from "@/lib/store";
 import type { AskEvent, Thread, Turn } from "@/lib/types";
 import { Answer } from "./Answer";
@@ -43,6 +43,7 @@ export function Chat() {
   const [draft, setDraft] = useState("");
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [menu, setMenu] = useState(false);
+  const [awake, setAwake] = useState(false);
   const feed = useRef<HTMLDivElement>(null);
   const thread = threads[active];
 
@@ -50,6 +51,7 @@ export function Chat() {
     const saved = loadThreads();
     if (saved.length) setThreads([blank(), ...saved.filter((t) => t.turns.length)]);
     setTheme(loadTheme());
+    wake().then(setAwake);
   }, []);
 
   useEffect(() => {
@@ -80,6 +82,7 @@ export function Chat() {
     let step = 0;
     try {
       await ask(q, thread.id, (e) => {
+        setAwake(true);
         if (e.event === "start") update(i, (t) => ({ ...t, id: e.data.thread_id }));
         if (e.event === "step") step++;
         patch((u) => apply(u, e, step));
@@ -166,7 +169,13 @@ export function Chat() {
           ) : (
             <div className="feed">
               {thread.turns.map((t, j) => (
-                <Answer key={t.id} turn={t} running={running && j === thread.turns.length - 1} onAsk={send} />
+                <Answer
+                  key={t.id}
+                  turn={t}
+                  running={running && j === thread.turns.length - 1}
+                  waking={!awake}
+                  onAsk={send}
+                />
               ))}
             </div>
           )}

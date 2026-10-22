@@ -66,3 +66,10 @@ export async function getDemoUsage(): Promise<DemoUsage | null> {
     .then((r) => (r.ok ? r.json() : null))
     .catch(() => null);
 }
+
+/** Free hosts sleep: ping on page load so the server is awake by the first question. */
+export async function wake(): Promise<boolean> {
+  return fetch(`${API_URL}/health`)
+    .then((r) => r.ok)
+    .catch(() => false);
+}

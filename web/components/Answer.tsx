@@ -52,7 +52,9 @@ function order(blocks: Block[]): Block[] {
   return [...blocks].sort((x, y) => (rank[x.type] ?? 3) - (rank[y.type] ?? 3));
 }
 
-export function Answer({ turn, running, onAsk }: { turn: Turn; running: boolean; onAsk: (q: string) => void }) {
+type Props = { turn: Turn; running: boolean; waking: boolean; onAsk: (q: string) => void };
+
+export function Answer({ turn, running, waking, onAsk }: Props) {
   const done = turn.tools.filter((t) => t.ok);
   const sources = Object.fromEntries(done.map((t, i) => [`r${i + 1}`, t.name]));
   const texts = turn.blocks.filter((b) => b.type === "text");
@@ -63,7 +65,7 @@ export function Answer({ turn, running, onAsk }: { turn: Turn; running: boolean;
   return (
     <section className="turn">
       <div className="question">{turn.question}</div>
-      <Trace tools={turn.tools} running={running} ms={turn.endedAt ? turn.endedAt - turn.startedAt : undefined} />
+      <Trace tools={turn.tools} running={running} waking={waking} ms={turn.endedAt ? turn.endedAt - turn.startedAt : undefined} />
       {texts.map((b, i) => b.type === "text" && <AnswerText key={i} text={b.text} sources={sources} />)}
       <Components blocks={components} />
       {turn.error && <div className="error">{turn.error}</div>}

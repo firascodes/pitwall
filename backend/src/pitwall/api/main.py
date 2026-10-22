@@ -10,7 +10,7 @@ from psycopg_pool import AsyncConnectionPool
 
 from pitwall import __version__
 from pitwall.api import ask, laps, telegram
-from pitwall.api.limits import DailyBudget, RateLimiter
+from pitwall.api.limits import DailyBudget, DailyQuota, RateLimiter
 from pitwall.config import Settings, get_settings
 from pitwall.graph.db import connect
 from pitwall.telemetry.locks import postgres_lock
@@ -26,6 +26,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     s = get_settings()
     app.state.budget = DailyBudget(s.daily_usd_cap, s.database_url)
     await app.state.budget.load()
+    app.state.quota = DailyQuota(s.database_url)
+    await app.state.quota.setup()
     async with AsyncExitStack() as stack:
         graph = connect(s)
         stack.callback(graph.close)
@@ -78,11 +80,12 @@ async def start_bot(app: FastAPI, s: Settings, stack: AsyncExitStack) -> None:
 app = FastAPI(title="Pit Wall API", version=__version__, lifespan=lifespan)
 app.state.budget = DailyBudget(get_settings().daily_usd_cap)
 app.state.limiter = RateLimiter(get_settings().ask_per_minute)
+app.state.quota = DailyQuota()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_settings().cors_origins,
     allow_methods=["GET", "POST"],
-    allow_headers=["content-type"],
+    allow_headers=["content-type", "authorization"],
 )
 app.include_router(ask.router)
 app.include_router(laps.router)
@@ -97,4 +100,5 @@ def health() -> dict[str, str | int | bool]:
         "version": __version__,
         "season": get_settings().season,
         "agent": getattr(app.state, "agent", None) is not None,
+        "auth": bool(get_settings().supabase_url),
     }

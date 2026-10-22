@@ -37,10 +37,10 @@ def test_ask_streams_steps_then_blocks() -> None:
     assert got[5][1]["usage"]["usd"] == 0.0
 
 
-def test_ask_stops_when_the_daily_budget_is_spent() -> None:
+async def test_ask_stops_when_the_daily_budget_is_spent() -> None:
     app.state.agent = FakeAgent()
     app.state.budget = DailyBudget(cap_usd=0.01)
-    app.state.budget.add(0.02)
+    await app.state.budget.add(0.02)
     response = TestClient(app).post("/ask", json={"question": "Who leads?"})
     assert response.status_code == 429
     assert TestClient(app).get("/usage").json()["spent_usd"] == 0.02

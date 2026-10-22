@@ -24,6 +24,8 @@ log = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Open shared clients once per process; the agent starts only when an LLM key is set."""
     s = get_settings()
+    app.state.budget = DailyBudget(s.daily_usd_cap, s.database_url)
+    await app.state.budget.load()
     async with AsyncExitStack() as stack:
         graph = connect(s)
         stack.callback(graph.close)

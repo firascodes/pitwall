@@ -79,7 +79,7 @@ async def run(
         yield "error", {"message": "The agent failed on this question. Try again."}
     usage = meter.report()
     if budget is not None:
-        budget.add(usage["usd"])
+        await budget.add(usage["usd"])
     log.info("thread %s cost $%.6f over %d LLM calls", thread_id, usage["usd"], usage["llm_calls"])
     yield "done", {"usage": usage}
 

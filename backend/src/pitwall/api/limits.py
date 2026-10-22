@@ -4,7 +4,16 @@ import time
 from collections import defaultdict, deque
 from datetime import UTC, datetime
 
+import psycopg
 from fastapi import Request
+
+LEDGER = """
+CREATE TABLE IF NOT EXISTS llm_spend (day date PRIMARY KEY, usd double precision NOT NULL)
+"""
+ADD = """
+INSERT INTO llm_spend (day, usd) VALUES (%s, %s)
+ON CONFLICT (day) DO UPDATE SET usd = llm_spend.usd + EXCLUDED.usd
+"""
 
 
 class RateLimiter:
@@ -25,11 +34,24 @@ class RateLimiter:
 
 
 class DailyBudget:
-    """LLM spend for the current UTC day; it resets at midnight."""
+    """LLM spend for the current UTC day; it resets at midnight.
 
-    def __init__(self, cap_usd: float) -> None:
-        self.cap_usd = cap_usd
+    With a database, the spend survives restarts (free hosts sleep and restart often).
+    """
+
+    def __init__(self, cap_usd: float, dsn: str | None = None) -> None:
+        self.cap_usd, self.dsn = cap_usd, dsn
         self.day, self.spent_usd = self._today(), 0.0
+
+    async def load(self) -> None:
+        if self.dsn is None:
+            return
+        async with await psycopg.AsyncConnection.connect(self.dsn, autocommit=True) as conn:
+            await conn.execute(LEDGER)
+            row = await (
+                await conn.execute("SELECT usd FROM llm_spend WHERE day = %s", (self.day,))
+            ).fetchone()
+        self.spent_usd = row[0] if row else 0.0
 
     @staticmethod
     def _today() -> str:
@@ -43,9 +65,12 @@ class DailyBudget:
         self._roll()
         return self.spent_usd >= self.cap_usd
 
-    def add(self, usd: float) -> None:
+    async def add(self, usd: float) -> None:
         self._roll()
         self.spent_usd += usd
+        if self.dsn is not None and usd > 0:
+            async with await psycopg.AsyncConnection.connect(self.dsn, autocommit=True) as conn:
+                await conn.execute(ADD, (self.day, usd))
 
     def report(self) -> dict[str, float | str]:
         self._roll()

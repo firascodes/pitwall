@@ -2,10 +2,8 @@
 
 import { Fragment, useState } from "react";
 import { plural, seconds } from "@/lib/format";
+import { highlight } from "@/lib/cypher";
 import type { Query, ToolCall } from "@/lib/types";
-
-const KEYWORDS =
-  /\b(MATCH|OPTIONAL|WHERE|RETURN|WITH|ORDER BY|LIMIT|CASE|WHEN|THEN|ELSE|END|AND|OR|NOT|IS|NULL|IN|AS|DESC|UNWIND|CONTAINS|DISTINCT|count|sum|max|min|coalesce|toLower|split)\b|(\$\w+)/g;
 
 /** Name a query by its shape: entity resolution runs before every tool's main query. */
 function purpose(cypher: string, tool: string) {
@@ -17,18 +15,7 @@ function purpose(cypher: string, tool: string) {
 }
 
 function Cypher({ q, tool }: { q: Query; tool: string }) {
-  const parts: React.ReactNode[] = [];
-  let last = 0;
-  for (const m of q.cypher.matchAll(KEYWORDS)) {
-    parts.push(q.cypher.slice(last, m.index));
-    parts.push(
-      <span key={m.index} className={m[2] ? "par" : "kw"}>
-        {m[0]}
-      </span>,
-    );
-    last = m.index! + m[0].length;
-  }
-  parts.push(q.cypher.slice(last));
+  const parts = highlight(q.cypher);
   const params = Object.entries(q.params).filter(([, v]) => v !== null);
   const name = purpose(q.cypher, tool);
   return (

@@ -9,12 +9,13 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.143.1",
-    "fastf1>=3.8.3",
     "httpx>=0.28.1",
     "langchain-openai>=1.7.2",
     "langgraph>=1.2.16",
     "langgraph-checkpoint-postgres>=3.2.0",
     "neo4j>=6.4.0",
+    "numpy>=2.3",
+    "pandas>=2.3",
     "polars>=2.0.0",
     "psycopg[binary]>=3.3.6",
     "pydantic-settings>=2.16.0",
@@ -33,6 +34,7 @@ requires = ["uv_build>=0.8.18,<0.9.0"]
 build-backend = "uv_build"
 
 [dependency-groups]
+spike = ["fastf1>=3.8.3"]  # only the Phase 0 telemetry spike uses FastF1 (blocked since Oct 2026)
 dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",

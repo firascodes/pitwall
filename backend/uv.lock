@@ -1560,12 +1560,13 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
-    { name = "fastf1" },
     { name = "httpx" },
     { name = "langchain-openai" },
     { name = "langgraph" },
     { name = "langgraph-checkpoint-postgres" },
     { name = "neo4j" },
+    { name = "numpy" },
+    { name = "pandas" },
     { name = "polars" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic-settings" },
@@ -1579,16 +1580,20 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "ruff" },
 ]
+spike = [
+    { name = "fastf1" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.143.1" },
-    { name = "fastf1", specifier = ">=3.8.3" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "langchain-openai", specifier = ">=1.7.2" },
     { name = "langgraph", specifier = ">=1.2.16" },
     { name = "langgraph-checkpoint-postgres", specifier = ">=3.2.0" },
     { name = "neo4j", specifier = ">=6.4.0" },
+    { name = "numpy", specifier = ">=2.3" },
+    { name = "pandas", specifier = ">=2.3" },
     { name = "polars", specifier = ">=2.0.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.6" },
     { name = "pydantic-settings", specifier = ">=2.16.0" },
@@ -1602,6 +1607,7 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=1.4.0" },
     { name = "ruff", specifier = ">=0.17.0" },
 ]
+spike = [{ name = "fastf1", specifier = ">=3.8.3" }]
 
 [[package]]
 name = "platformdirs"

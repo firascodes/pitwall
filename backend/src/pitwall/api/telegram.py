@@ -1,6 +1,7 @@
 """POST /telegram/webhook: Telegram pushes updates here; the secret header proves it is Telegram."""
 
 import hmac
+import os
 
 from fastapi import APIRouter, Header, HTTPException, Request
 
@@ -19,5 +20,9 @@ async def webhook(
         raise HTTPException(404, "The Telegram bot is not configured.")
     if not hmac.compare_digest(x_telegram_bot_api_secret_token or "", secret.get_secret_value()):
         raise HTTPException(403, "Bad webhook secret.")
-    bot.schedule(await request.json())
+    update = await request.json()
+    if os.environ.get("VERCEL"):
+        await bot.handle(update)  # a serverless function may stop once it responds
+    else:
+        bot.schedule(update)
     return {"ok": True}

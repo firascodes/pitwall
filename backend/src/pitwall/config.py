@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -15,7 +16,8 @@ class Settings(BaseSettings):
     neo4j_user: str = "neo4j"
     neo4j_password: SecretStr = SecretStr("pitwall-dev-password")
     database_url: str = "postgresql://pitwall:pitwall@localhost:5433/pitwall"
-    data_dir: Path = Path("data")
+    # Vercel's filesystem is read-only except /tmp: caches live there and refill on cold starts
+    data_dir: Path = Path("/tmp/pitwall") if os.environ.get("VERCEL") else Path("data")
     openai_api_key: SecretStr | None = None
     llm_model: str = "gpt-6-luna"  # smallest current OpenAI model with tool calling
     llm_reasoning_effort: str = "low"

@@ -574,7 +574,7 @@ Tools: **pytest** for the test runner. **Langfuse** (or LangSmith) for **traces*
 
 ## 14. Deployment
 
-**As built for v0.1 (ADR-013):** Vercel (web) · Render free, Docker (API and Telegram webhook) · AuraDB Free (graph) · Supabase (Postgres). Steps: [deploy.md](deploy.md). The table below is the plan for a paid VPS later.
+**As built for v0.1 (ADR-013):** Vercel (web, and the API as a Python function) · AuraDB Free (graph) · Supabase (Postgres and Auth). Steps: [deploy.md](deploy.md). The table below is the plan for a paid VPS later.
 
 | Part | Where | Reason |
 |---|---|---|
@@ -673,9 +673,9 @@ CI/CD: GitHub Actions. Steps: lint (**ruff**), types (**mypy** or **pyright**), 
 
 ### ADR-013: A free hosting stack for the showcase
 
-- **Decision.** Vercel for the web app, Render free (Docker) for the API, Neo4j AuraDB Free for the graph, Supabase for Postgres.
+- **Decision.** Vercel for the web app and for the API (FastAPI as one Python function), Neo4j AuraDB Free for the graph, Supabase for Postgres and Auth. Render (Docker) was the first plan; the Dockerfile stays for any container host.
 - **Reason.** No monthly cost. The graph (approx. 29k nodes, 31k relationships) fits AuraDB Free (200k nodes, 400k relationships).
-- **Consequences.** Render free sleeps after 15 minutes: the web app sends a warm-up ping on load and says "Waking the pit wall". The daily spend cap is stored in Postgres, so a restart cannot reset it. AuraDB Free pauses after 3 days with no queries. Telemetry is not shipped: the API loads laps from OpenF1 on first use and caches them on disk.
+- **Consequences.** Functions start cold: the web app sends a warm-up ping on load and says "Waking the pit wall". The bundle must stay under 500 MB, so FastF1 (scipy, matplotlib) moved to an opt-in `spike` group. Caches live in `/tmp` and refill after a cold start. The daily spend cap and quotas are stored in Postgres, so no instance can reset them. The Telegram webhook answers inline. AuraDB Free pauses after 3 days with no queries. Telemetry is not shipped: the API loads laps from OpenF1 on first use and caches them on disk.
 
 ### Open decisions (decide before Phase 2)
 - ~~LLM provider~~ Decided: OpenAI **gpt-6-luna** (ADR-010). Compare with others on the eval set later.

@@ -30,7 +30,7 @@ An agent on a Neo4j knowledge graph and real telemetry. Every answer shows the C
   Web (Next.js, Vercel)          Telegram bot
         │ POST /ask (SSE)              │ webhook
         ▼                              ▼
-  ┌──────────────── FastAPI (Render, Docker) ─────────────────┐
+  ┌──────────────── FastAPI (Vercel, Python) ─────────────────┐
   │  rate limit · daily spend cap · CORS                      │
   │                                                           │
   │  LangGraph agent                                          │

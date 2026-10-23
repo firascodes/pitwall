@@ -32,7 +32,13 @@ export type CornerRow = {
   cause: string;
 };
 
-export type ReplayData = { laps: string[]; drivers: string[]; times: string[]; ghost: boolean };
+export type ReplayData = {
+  laps: string[];
+  drivers: string[];
+  times: string[];
+  sectors_ms?: ((number | null)[] | null)[];
+  ghost: boolean;
+};
 export type DeltaData = { distance_m: number[]; b_behind_a_s: number[]; a: Lap; b: Lap };
 export type CornerData = { rows: CornerRow[]; a: Lap; b: Lap };
 export type Row = Record<string, unknown>;
@@ -51,6 +57,7 @@ export type Turn = {
   question: string;
   tools: ToolCall[];
   blocks: Block[];
+  draft?: string; // answer text streaming in before the final block
   usage?: Usage;
   error?: string;
   startedAt: number;
@@ -69,6 +76,7 @@ export type AskEvent =
       event: "tool";
       data: { id: string; name: string; ok: boolean; preview: string; queries: Query[] };
     }
+  | { event: "delta"; data: { text: string } }
   | { event: "block"; data: Block }
   | { event: "error"; data: { message: string } }
   | { event: "done"; data: { usage: Usage } };

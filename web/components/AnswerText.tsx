@@ -17,10 +17,12 @@ function inline(text: string, sources: Record<string, string>): ReactNode[] {
   });
 }
 
-export function AnswerText({ text, sources }: { text: string; sources: Record<string, string> }) {
+type Props = { text: string; sources: Record<string, string>; streaming?: boolean };
+
+export function AnswerText({ text, sources, streaming = false }: Props) {
   const paragraphs = text.trim().split(/\n{2,}/);
   return (
-    <div className="answer-text">
+    <div className={`answer-text${streaming ? " streaming" : ""}`}>
       {paragraphs.map((p, i) => {
         const lines = p.split("\n");
         if (lines.every((l) => /^\s*[-*] /.test(l)))

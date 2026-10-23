@@ -1,8 +1,9 @@
 import json
 
 from fastapi.testclient import TestClient
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 
+from pitwall.api.ask import AnswerText
 from pitwall.api.limits import DailyBudget, RateLimiter
 from pitwall.api.main import app
 
@@ -10,10 +11,15 @@ from pitwall.api.main import app
 class FakeAgent:
     async def astream(self, state, config, stream_mode):
         call = {"name": "standings", "args": {}, "id": "c1"}
-        yield {"planner": {"messages": [AIMessage("", tool_calls=[call])]}}
-        yield {"tools": {"messages": [ToolMessage("[...]", tool_call_id="c1", name="standings")]}}
-        yield {"planner": {"messages": [AIMessage("Russell leads.")]}}
-        yield {"composer": {"blocks": [{"type": "text", "text": "Russell leads [r1]."}]}}
+        yield "updates", {"planner": {"messages": [AIMessage("", tool_calls=[call])]}}
+        yield (
+            "updates",
+            {"tools": {"messages": [ToolMessage("[...]", tool_call_id="c1", name="standings")]}},
+        )
+        yield "updates", {"planner": {"messages": [AIMessage("Russell leads.")]}}
+        for token in ('{"blocks": [{"type": "text", "text": "Russ', 'ell leads [r1]."}', "]}"):
+            yield "messages", (AIMessageChunk(token), {"langgraph_node": "composer"})
+        yield "updates", {"composer": {"blocks": [{"type": "text", "text": "Russell leads [r1]."}]}}
 
 
 def events(body: str) -> list[tuple[str, dict]]:
@@ -29,12 +35,15 @@ def test_ask_streams_steps_then_blocks() -> None:
     response = TestClient(app).post("/ask", json={"question": "Who leads?", "thread_id": "t1"})
     assert response.headers["content-type"].startswith("text/event-stream")
     got = events(response.text)
-    assert [e for e, _ in got] == ["start", "step", "tool", "step", "block", "done"]
+    assert [e for e, _ in got] == [
+        "start", "step", "tool", "step", "delta", "delta", "block", "done"
+    ]  # fmt: skip
+    assert "".join(d["text"] for e, d in got if e == "delta") == "Russell leads [r1]."
     assert got[0][1] == {"thread_id": "t1"}
     assert got[1][1]["tool_calls"] == [{"id": "c1", "name": "standings", "args": {}}]
     assert got[2][1]["id"] == "c1" and got[2][1]["queries"] == []
-    assert got[4][1]["text"] == "Russell leads [r1]."
-    assert got[5][1]["usage"]["usd"] == 0.0
+    assert got[6][1]["text"] == "Russell leads [r1]."
+    assert got[7][1]["usage"]["usd"] == 0.0
 
 
 async def test_ask_stops_when_the_daily_budget_is_spent() -> None:
@@ -56,3 +65,9 @@ def test_rate_limiter_blocks_after_the_limit() -> None:
     limiter = RateLimiter(limit=2)
     assert [limiter.allow("ip"), limiter.allow("ip"), limiter.allow("ip")] == [True, True, False]
     assert limiter.allow("other-ip")
+
+
+def test_answer_text_survives_prefixes_that_are_not_json_yet() -> None:
+    draft = AnswerText()
+    tokens = ["", "{", '"blo', 'cks": [{"type": "text", "text": "Ant', 'onelli"}]}']
+    assert "".join(draft.feed(AIMessageChunk(t)) for t in tokens) == "Antonelli"

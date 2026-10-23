@@ -17,7 +17,7 @@ SUPABASE = "https://pitwall-test.supabase.co"
 
 class FakeAgent:
     async def astream(self, state, config, stream_mode):
-        yield {"composer": {"blocks": [{"type": "text", "text": "Antonelli leads."}]}}
+        yield "updates", {"composer": {"blocks": [{"type": "text", "text": "Antonelli leads."}]}}
 
 
 KEY = ec.generate_private_key(ec.SECP256R1())

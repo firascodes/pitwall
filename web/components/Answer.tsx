@@ -67,6 +67,7 @@ export function Answer({ turn, running, waking, onAsk }: Props) {
       <div className="question">{turn.question}</div>
       <Trace tools={turn.tools} running={running} waking={waking} ms={turn.endedAt ? turn.endedAt - turn.startedAt : undefined} />
       {texts.map((b, i) => b.type === "text" && <AnswerText key={i} text={b.text} sources={sources} />)}
+      {!texts.length && turn.draft && <AnswerText text={turn.draft} sources={sources} streaming />}
       <Components blocks={components} />
       {turn.error && <div className="error">{turn.error}</div>}
       {(chips || u) && (

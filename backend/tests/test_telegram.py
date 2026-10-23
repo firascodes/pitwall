@@ -69,8 +69,11 @@ class FakeClient:
 class FakeAgent:
     async def astream(self, state, config, stream_mode):
         assert config["configurable"]["thread_id"] == "tg-7-0"
-        yield {"planner": {"messages": [AIMessage("Russell leads.")]}}
-        yield {"composer": {"blocks": [{"type": "text", "text": "**Russell** leads [r1]."}]}}
+        yield "updates", {"planner": {"messages": [AIMessage("Russell leads.")]}}
+        yield (
+            "updates",
+            {"composer": {"blocks": [{"type": "text", "text": "**Russell** leads [r1]."}]}},
+        )
 
 
 def bot(client: FakeClient) -> Bot:

@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage, ToolMessage
+from langchain_core.utils.json import parse_partial_json
 from pydantic import BaseModel, Field
 
 from pitwall.agent.cost import CostMeter
@@ -61,6 +62,27 @@ def step_events(node: str, update: dict[str, Any]) -> Iterator[tuple[str, Any]]:
             yield "block", block
 
 
+class AnswerText:
+    """Pull the answer text out of the composer's JSON while it is still being written."""
+
+    def __init__(self) -> None:
+        self.raw, self.sent = "", 0
+
+    def feed(self, chunk: Any) -> str:
+        content = chunk.content
+        if isinstance(content, list):  # Responses API: a list of content parts
+            content = "".join(c.get("text", "") for c in content if isinstance(c, dict))
+        self.raw += content or ""
+        try:
+            blocks = (parse_partial_json(self.raw) or {}).get("blocks") or []
+        except ValueError:  # a prefix that is not JSON yet
+            return ""
+        first = blocks[0] if blocks and isinstance(blocks[0], dict) else {}
+        text = first.get("text", "") if first.get("type") == "text" else ""
+        new, self.sent = text[self.sent :], max(self.sent, len(text))
+        return new
+
+
 async def run(
     agent: Any,
     question: str,
@@ -76,12 +98,18 @@ async def run(
     yield "start", {"thread_id": thread_id}
     thread = f"{owner}:{thread_id}" if owner else thread_id
     config = {"configurable": {"thread_id": thread}, "callbacks": [meter]}
+    draft = AnswerText()
     try:
-        updates = agent.astream(
-            {"messages": [HumanMessage(question)]}, config, stream_mode="updates"
+        parts = agent.astream(
+            {"messages": [HumanMessage(question)]}, config, stream_mode=["updates", "messages"]
         )
-        async for update in updates:
-            for node, change in update.items():
+        async for mode, part in parts:
+            if mode == "messages":
+                chunk, meta = part
+                if meta.get("langgraph_node") == "composer" and (new := draft.feed(chunk)):
+                    yield "delta", {"text": new}
+                continue
+            for node, change in part.items():
                 for event in step_events(node, change):
                     yield event
     except Exception:

@@ -24,7 +24,7 @@ export function DeltaChart({ data, title }: { data: DeltaData; title: string }) 
         <span>{title || "Gap through the lap"}</span>
         <span className="mono" style={{ fontSize: 12, textTransform: "none" }}>
           {hover === null ? "Final" : `${Math.round(d[i]).toLocaleString()} m`}{" "}
-          <b style={{ color: g[i] >= 0 ? "var(--a)" : "var(--yellow)" }}>
+          <b style={{ color: "var(--green)" }}>
             {g[i] >= 0 ? a : b} +{Math.abs(g[i]).toFixed(3)}s
           </b>
         </span>
@@ -46,16 +46,16 @@ export function DeltaChart({ data, title }: { data: DeltaData; title: string }) 
           aria-label={`Gap between ${a} and ${b}: final ${final.toFixed(3)} seconds`}
         >
           <line x1="0" x2={W} y1={H / 2} y2={H / 2} stroke="var(--dim)" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" opacity=".6" />
-          <polygon points={`0,${H / 2} ${line} ${W},${H / 2}`} fill="var(--a)" opacity=".1" />
+          <polygon points={`0,${H / 2} ${line} ${W},${H / 2}`} fill="var(--green)" opacity=".1" />
           <polyline points={line} fill="none" stroke="var(--ink)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
           {hover !== null && (
             <line x1={x(d[i])} x2={x(d[i])} y1="0" y2={H} stroke="var(--ink)" opacity=".3" vectorEffect="non-scaling-stroke" />
           )}
         </svg>
-        <span className="px" style={{ position: "absolute", left: 20, top: 2, color: "var(--a)" }}>
+        <span className="px" style={{ position: "absolute", left: 20, top: 2, color: "var(--muted)" }}>
           {a} ahead
         </span>
-        <span className="px" style={{ position: "absolute", left: 20, bottom: 14, color: "var(--yellow)" }}>
+        <span className="px" style={{ position: "absolute", left: 20, bottom: 14, color: "var(--muted)" }}>
           {b} ahead
         </span>
       </div>

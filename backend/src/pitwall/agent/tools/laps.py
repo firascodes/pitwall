@@ -27,7 +27,8 @@ WHERE CASE
        AND ($which <> 'last_q3' OR l.part = 'Q3')
 END
 RETURN l.lap_id AS lap_id, d.name AS driver, l.lap_number AS lap, l.lap_time_ms AS ms,
-       l.part AS part, l.compound AS compound, l.tyre_age AS tyre_age
+       l.part AS part, l.compound AS compound, l.tyre_age AS tyre_age,
+       [l.s1_ms, l.s2_ms, l.s3_ms] AS sectors_ms
 ORDER BY CASE $which WHEN 'last_q3' THEN -l.lap_number ELSE l.lap_time_ms END
 LIMIT 1
 """
@@ -35,8 +36,18 @@ LIMIT 1
 LAP_FACTS = """
 MATCH (d:Driver)-[:ACHIEVED]->(res:Result)-[:HAS_LAP]->(l:Lap {lap_id: $lap_id}),
       (res)-[:IN_SESSION]->(s:Session)
-RETURN d.name AS driver, l.lap_time_ms AS ms, s.openf1_session_key AS session_key
+RETURN d.name AS driver, l.lap_time_ms AS ms, s.openf1_session_key AS session_key,
+       [l.s1_ms, l.s2_ms, l.s3_ms] AS sectors_ms
 """
+
+
+def lap_summary(lap_id: str, facts: dict) -> dict:
+    return {
+        "lap_id": lap_id,
+        "driver": facts["driver"],
+        "time": lap_time(facts["ms"]),
+        "sectors_ms": facts["sectors_ms"],
+    }
 
 
 def lap_tools(
@@ -88,8 +99,8 @@ def lap_tools(
         distance, behind = gap(a, b)
         a_ms, b_ms = a_facts["ms"], b_facts["ms"]
         summary = {
-            "a": {"lap_id": lap_a, "driver": a_facts["driver"], "time": lap_time(a_ms)},
-            "b": {"lap_id": lap_b, "driver": b_facts["driver"], "time": lap_time(b_ms)},
+            "a": lap_summary(lap_a, a_facts),
+            "b": lap_summary(lap_b, b_facts),
             "b_behind_a_s": round((b_ms - a_ms) / 1000, 3),
             "biggest_corner_swings": sorted(gains, key=lambda g: -abs(g["a_gain_s"]))[:5],
         }

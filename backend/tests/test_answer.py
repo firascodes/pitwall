@@ -39,6 +39,7 @@ def test_components_are_filled_from_the_referenced_tool_result() -> None:
         "laps": [COMPARE["a"]["lap_id"], COMPARE["b"]["lap_id"]],
         "drivers": ["Lewis Hamilton", "Charles Leclerc"],
         "times": ["1:31.496", "1:31.512"],
+        "sectors_ms": [None, None],
         "ghost": True,
     }
     assert blocks[2]["data"]["b_behind_a_s"] == [0.0, 0.01]
@@ -61,3 +62,19 @@ def test_catalog_lists_what_each_source_can_fill() -> None:
     assert "[r1] compare_laps -> can fill: corner_table, delta_chart, lap_replay" in catalog(
         SOURCES
     )
+
+
+def lap(driver: str, time: str) -> dict:
+    return {"lap_id": f"2026-17-Q-{driver}-20", "driver": driver, "time": time, "sectors_ms": [1]}
+
+
+def test_two_single_laps_of_one_session_merge_into_one_replay() -> None:
+    sources = {
+        "r1": Source("r1", "find_lap", "lap", lap("antonelli", "1:35.631"), "{}"),
+        "r2": Source("r2", "find_lap", "lap", lap("russell", "1:35.871"), "{}"),
+    }
+    draft = Draft(blocks=[component("lap_replay", "r1"), component("lap_replay", "r2")])
+    blocks = hydrate(draft, sources)
+    assert len(blocks) == 1
+    assert blocks[0]["data"]["drivers"] == ["antonelli", "russell"]
+    assert blocks[0]["data"]["ghost"] is True

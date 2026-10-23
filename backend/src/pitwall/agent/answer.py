@@ -60,8 +60,24 @@ def _replay(kind: Kind, data: Any) -> dict[str, Any]:
         "laps": [lap["lap_id"] for lap in laps],
         "drivers": [lap["driver"] for lap in laps],
         "times": [lap["time"] for lap in laps],
+        "sectors_ms": [lap.get("sectors_ms") for lap in laps],
         "ghost": kind == "lap_compare",
     }
+
+
+def _weekend(lap_id: str) -> str:
+    return lap_id.rsplit("-", 2)[0]  # '2026-17-Q-hamilton-21' -> '2026-17-Q'
+
+
+def _merge(replay: dict[str, Any], lap: dict[str, Any]) -> bool:
+    """Two single-lap replays of one session become one replay with both cars."""
+    data = replay["data"]
+    if len(data["laps"]) != 1 or _weekend(data["laps"][0]) != _weekend(lap["laps"][0]):
+        return False
+    for key in ("laps", "drivers", "times", "sectors_ms"):
+        data[key] = data[key] + lap[key]
+    data["ghost"] = True
+    return True
 
 
 FILL: dict[str, Callable[[Kind, Any], Any]] = {
@@ -93,6 +109,10 @@ def hydrate(draft: Draft, sources: dict[str, Source]) -> list[dict[str, Any]]:
             ):
                 continue
             data = FILL[block.component](source.kind, source.data)
+            if block.component == "lap_replay":
+                earlier = next((b for b in blocks if b["type"] == "lap_replay"), None)
+                if earlier and _merge(earlier, data):
+                    continue
             blocks.append(
                 {"type": block.component, "title": block.title, "source": source.id, "data": data}
             )

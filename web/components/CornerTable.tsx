@@ -28,7 +28,7 @@ export function CornerTable({ data, title }: { data: CornerData; title: string }
             <span className="px" style={{ width: 38, fontSize: 12 }}>
               {r.corner}
             </span>
-            <span className="mono" style={{ width: 100, fontWeight: 600, color: aWins ? "var(--a)" : "var(--yellow)" }}>
+            <span className="mono" style={{ width: 100, fontWeight: 600, color: "var(--green)" }}>
               {aWins ? a : b} {Math.abs(r.a_gain_s).toFixed(3)}
             </span>
             {all && (

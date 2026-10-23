@@ -11,10 +11,12 @@ import { Sidebar } from "./Sidebar";
 import { SignIn } from "./SignIn";
 
 const EXAMPLES = [
-  "Compare Hamilton and Leclerc's fastest laps in Singapore qualifying",
-  "Who leads the championship, and by how much?",
-  "How has Antonelli done against Russell this season?",
-  "Which laps were deleted in Monza qualifying, and why?",
+  { tag: "Lap replay", q: "Compare Hamilton and Leclerc's fastest laps in Singapore qualifying" },
+  { tag: "Title fight", q: "Who leads the championship, and by how much?" },
+  { tag: "Teammates", q: "How has Antonelli done against Russell this season?" },
+  { tag: "Track limits", q: "Which laps were deleted in Monza qualifying, and why?" },
+  { tag: "Race result", q: "Who won the Singapore Grand Prix, and from where on the grid?" },
+  { tag: "Driver market", q: "Which teams has Liam Lawson driven for this season?" },
 ];
 
 const blank = (): Thread => ({ id: null, title: "New radio check", turns: [], updatedAt: Date.now() });
@@ -28,6 +30,8 @@ function apply(turn: Turn, e: AskEvent, step: number): Turn {
         ...turn,
         tools: turn.tools.map((t) => (t.id === e.data.id ? { ...t, ok: e.data.ok, preview: e.data.preview, queries: e.data.queries } : t)),
       };
+    case "delta":
+      return { ...turn, draft: (turn.draft ?? "") + e.data.text };
     case "block":
       return { ...turn, blocks: [...turn.blocks, e.data] };
     case "error":
@@ -198,9 +202,13 @@ export function Chat() {
                 from a Neo4j knowledge graph and real telemetry, and you can see every query it ran.
               </p>
               <div className="examples">
-                {EXAMPLES.map((q) => (
-                  <button key={q} className="chip" onClick={() => send(q)}>
-                    {q}
+                {EXAMPLES.map(({ tag, q }) => (
+                  <button key={q} className="example" onClick={() => send(q)}>
+                    <span className="px">{tag}</span>
+                    <span>{q}</span>
+                    <span className="go mono" aria-hidden>
+                      →
+                    </span>
                   </button>
                 ))}
               </div>

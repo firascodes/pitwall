@@ -302,6 +302,17 @@ main {
   font-weight: 700;
 }
 
+.answer-text.streaming > :last-child::after {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 18px;
+  margin-left: 3px;
+  vertical-align: -3px;
+  background: var(--red);
+  animation: blink 0.8s steps(2) infinite;
+}
+
 .cite {
   font-family: var(--font-mono), monospace;
   font-size: 11px;
@@ -519,10 +530,54 @@ main {
   right: 16px;
   bottom: 8px;
   display: flex;
+  align-items: flex-end;
   gap: 16px;
   text-align: right;
   font-size: 14px;
   pointer-events: none;
+}
+
+.speeds > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.tower {
+  width: auto;
+  margin: 0 16px;
+  font-size: 13px;
+  border-top: 1px solid var(--line);
+}
+
+.tower th,
+.tower td {
+  padding: 6px 10px;
+  border: 0;
+  text-align: right;
+  font-family: var(--font-mono), monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.tower th {
+  font-size: 10px;
+  font-family: var(--font-px), monospace;
+}
+
+.tower tbody th {
+  text-align: left;
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.tower td {
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.gap-now {
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .controls {
@@ -703,6 +758,13 @@ td.num {
 
 .chip:hover {
   border-color: var(--ink);
+  box-shadow: 3px 3px 0 var(--shadow);
+}
+
+.foot .chip::before {
+  content: "↳ ";
+  color: var(--red);
+  font-family: var(--font-mono), monospace;
 }
 
 .cost {
@@ -764,7 +826,7 @@ td.num {
 
 /* empty state */
 .hero {
-  max-width: 720px;
+  max-width: 900px;
   margin: 8vh auto 0;
   padding: 0 32px;
   display: flex;
@@ -789,15 +851,54 @@ td.num {
 
 .examples {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
   width: 100%;
 }
 
-.examples .chip {
-  padding: 12px 14px;
-  font-weight: 400;
-  line-height: 20px;
+.example {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px 30px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  text-align: left;
+  font-size: 15px;
+  line-height: 21px;
+  transition: transform 0.08s, box-shadow 0.08s, border-color 0.08s;
+}
+
+.example .px {
+  color: var(--red);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.example .px::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  background: var(--red);
+}
+
+.example .go {
+  position: absolute;
+  right: 14px;
+  bottom: 8px;
+  color: var(--dim);
+}
+
+.example:hover {
+  border-color: var(--ink);
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0 var(--shadow);
+}
+
+.example:hover .go {
+  color: var(--red);
 }
 
 /* mobile */
@@ -830,9 +931,12 @@ td.num {
     padding: 20px 16px;
   }
 
-  .grid2,
-  .examples {
+  .grid2 {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .examples {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .answer-text {
@@ -1463,5 +1567,11 @@ td.num {
 
   .lfoot .credits {
     margin-left: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .examples {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

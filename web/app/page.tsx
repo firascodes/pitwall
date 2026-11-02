@@ -4,9 +4,19 @@ import { highlight } from "@/lib/cypher";
 const GITHUB = "https://github.com/firascodes/pitwall";
 const BOT = process.env.NEXT_PUBLIC_TELEGRAM_BOT; // the bot's username, without @
 
-const STATS = [
-  ["28.8k", "graph nodes"],
-  ["27,775", "laps with telemetry"],
+type Season = { rounds: number; latest: string; nodes: number; laps: number };
+
+/** How far the data goes, read from the API and cached for an hour. */
+async function getSeason(): Promise<Season | null> {
+  const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  return fetch(`${api}/season`, { next: { revalidate: 3600 } })
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null);
+}
+
+const stats = (s: Season | null) => [
+  [s ? `${(s.nodes / 1000).toFixed(1)}k` : "32k", "graph nodes"],
+  [(s?.laps ?? 30000).toLocaleString("en-US"), "laps with telemetry"],
   ["8/8", "golden evals passing"],
   ["$0.0008", "per lap comparison"],
 ];
@@ -25,7 +35,9 @@ WHERE l.lap_time_ms IS NOT NULL AND NOT l.deleted
 RETURN l.lap_id, l.lap_time_ms, l.compound, l.tyre_age
 ORDER BY l.lap_time_ms LIMIT 1`;
 
-export default function Landing() {
+export default async function Landing() {
+  const season = await getSeason();
+  const STATS = stats(season);
   return (
     <div className="landing">
       <nav className="lnav">
@@ -52,7 +64,7 @@ export default function Landing() {
         <div className="lhero-copy">
           <span className="px tag">
             <span className="sq" />
-            F1 2026 · Rounds 1–17 · real data
+            {season ? `F1 2026 · ${season.rounds} rounds so far · latest: ${season.latest}` : "F1 2026 · real data"}
           </span>
           <h1>
             Ask the

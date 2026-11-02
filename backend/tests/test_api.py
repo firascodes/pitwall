@@ -81,3 +81,13 @@ def test_graph_health_runs_a_real_read() -> None:
 
     app.state.graph = FakeGraph()
     assert TestClient(app).get("/health/graph").json() == {"drivers": 23}
+
+
+def test_season_reports_how_far_the_data_goes() -> None:
+    class FakeGraph:
+        def execute_query(self, cypher: str):
+            row = {"rounds": 19, "latest": "Mexico City Grand Prix", "nodes": 32069, "laps": 30000}
+            return type("Result", (), {"records": [row]})()
+
+    app.state.graph = FakeGraph()
+    assert TestClient(app).get("/season").json()["rounds"] == 19

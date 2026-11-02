@@ -106,6 +106,22 @@ def health() -> dict[str, str | int | bool]:
     }
 
 
+SEASON = """
+MATCH (r:Race)-[:HAS_SESSION]->(:Session)<-[:IN_SESSION]-(:Result)
+WITH DISTINCT r ORDER BY r.round DESC
+WITH collect(r) AS done
+CALL { MATCH (n) RETURN count(n) AS nodes }
+CALL { MATCH (l:Lap) RETURN count(l) AS laps }
+RETURN size(done) AS rounds, done[0].name AS latest, nodes, laps
+"""
+
+
+@app.get("/season")
+def season() -> dict[str, str | int]:
+    """How far the season data goes; the landing page shows it."""
+    return dict(app.state.graph.execute_query(SEASON).records[0])
+
+
 @app.get("/health/graph")
 def graph_health() -> dict[str, int]:
     """One real read, so the daily cron keeps AuraDB Free from pausing."""

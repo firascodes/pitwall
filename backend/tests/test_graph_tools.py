@@ -19,7 +19,7 @@ def test_resolves_names_codes_and_latest(graph) -> None:
     assert resolve_driver(graph, "Lewis") == "hamilton"
     assert resolve_driver(graph, "VER") == "max_verstappen"
     assert resolve_race(graph, "singapore", 2026) == "2026-17"
-    assert resolve_race(graph, "latest", 2026, "Q") == "2026-17"
+    assert resolve_race(graph, "latest", 2026, "Q") == "2026-19"
 
 
 def test_ambiguous_names_ask_the_user(graph) -> None:

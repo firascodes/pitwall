@@ -5,7 +5,10 @@
 <p align="center"><b>Your race engineer for the 2026 F1 season.</b><br>
 An agent on a Neo4j knowledge graph and real telemetry. Every answer shows the Cypher it ran and what it cost.</p>
 
+<p align="center"><a href="https://pitwall-graph.vercel.app"><b>▶ Try it live: pitwall-graph.vercel.app</b></a></p>
+
 <p align="center">
+  <a href="https://pitwall-graph.vercel.app">Live demo</a> ·
   <a href="#run-it-locally">Run it</a> ·
   <a href="docs/architecture.md">Architecture</a> ·
   <a href="docs/deploy.md">Deploy</a> ·

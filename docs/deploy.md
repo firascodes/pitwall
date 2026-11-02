@@ -35,10 +35,11 @@ AuraDB Free pauses after 3 days with no queries; the API's daily cron prevents t
 1. Create a project at <https://supabase.com/dashboard>. Under **Connect**, copy the **Transaction pooler**
    URI (port 6543): serverless functions open many short connections, which is what that pooler is for.
    The API creates its own tables.
-2. Sign-in (guests get one question a day per network; signed-in users get 30):
+2. Sign-in (guests get three questions a day per network; signed-in users get 30):
    - **Authentication → URL Configuration:** Site URL = the web URL, and add `<web URL>/chat` to Redirect URLs.
    - **Authentication → Sign In / Providers:** email links are on by default. For Google and GitHub, create an
-     OAuth app with each provider, using the callback URL Supabase shows.
+     OAuth app with each provider, using the callback URL Supabase shows, enable it in Supabase, then add
+     `NEXT_PUBLIC_AUTH_PROVIDERS=google,github` to the web project so the buttons appear.
    - **Project Settings → API Keys:** copy the **publishable** key (never the secret key).
    - **Project Settings → JWT Keys:** the project must sign with an asymmetric key (ECC P-256, the default).
 

@@ -38,9 +38,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if s.openai_api_key:
             from pitwall.agent.factory import create_agent
 
+            # no prepared statements: the Supabase transaction pooler cannot keep them
             pool = AsyncConnectionPool(
                 s.database_url,
-                kwargs={"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row},
+                kwargs={"autocommit": True, "prepare_threshold": None, "row_factory": dict_row},
                 open=False,
             )
             await stack.enter_async_context(pool)

@@ -26,6 +26,11 @@ ON CONFLICT (day) DO UPDATE SET usd = llm_spend.usd + EXCLUDED.usd
 """
 
 
+async def _connect(dsn: str) -> psycopg.AsyncConnection:
+    """No prepared statements: the Supabase transaction pooler cannot keep them."""
+    return await psycopg.AsyncConnection.connect(dsn, autocommit=True, prepare_threshold=None)
+
+
 class RateLimiter:
     """Sliding window: at most `limit` requests per `window_s` seconds for each key."""
 
@@ -56,7 +61,7 @@ class DailyBudget:
     async def load(self) -> None:
         if self.dsn is None:
             return
-        async with await psycopg.AsyncConnection.connect(self.dsn, autocommit=True) as conn:
+        async with await _connect(self.dsn) as conn:
             await conn.execute(LEDGER)
             row = await (
                 await conn.execute("SELECT usd FROM llm_spend WHERE day = %s", (self.day,))
@@ -79,7 +84,7 @@ class DailyBudget:
         self._roll()
         self.spent_usd += usd
         if self.dsn is not None and usd > 0:
-            async with await psycopg.AsyncConnection.connect(self.dsn, autocommit=True) as conn:
+            async with await _connect(self.dsn) as conn:
                 await conn.execute(ADD, (self.day, usd))
 
     def report(self) -> dict[str, float | str]:
@@ -96,7 +101,7 @@ class DailyQuota:
 
     async def setup(self) -> None:
         if self.dsn is not None:
-            async with await psycopg.AsyncConnection.connect(self.dsn, autocommit=True) as conn:
+            async with await _connect(self.dsn) as conn:
                 await conn.execute(QUOTA)
 
     async def take(self, who: str, limit: int) -> bool:
@@ -106,14 +111,14 @@ class DailyQuota:
                 return False
             self.memory[day, who] += 1
             return True
-        async with await psycopg.AsyncConnection.connect(self.dsn, autocommit=True) as conn:
+        async with await _connect(self.dsn) as conn:
             return await (await conn.execute(TAKE, (day, who, limit))).fetchone() is not None
 
     async def used(self, who: str) -> int:
         day = datetime.now(UTC).date().isoformat()
         if self.dsn is None:
             return self.memory[day, who]
-        async with await psycopg.AsyncConnection.connect(self.dsn, autocommit=True) as conn:
+        async with await _connect(self.dsn) as conn:
             row = await (
                 await conn.execute(
                     "SELECT n FROM question_quota WHERE day = %s AND who = %s", (day, who)

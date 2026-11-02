@@ -29,3 +29,6 @@ out/
 .idea/
 .vscode/
 .claude/
+
+# vercel
+.vercel

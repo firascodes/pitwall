@@ -71,3 +71,13 @@ def test_answer_text_survives_prefixes_that_are_not_json_yet() -> None:
     draft = AnswerText()
     tokens = ["", "{", '"blo', 'cks": [{"type": "text", "text": "Ant', 'onelli"}]}']
     assert "".join(draft.feed(AIMessageChunk(t)) for t in tokens) == "Antonelli"
+
+
+def test_graph_health_runs_a_real_read() -> None:
+    class FakeGraph:
+        def execute_query(self, cypher: str):
+            assert "MATCH" in cypher
+            return type("Result", (), {"records": [{"n": 23}]})()
+
+    app.state.graph = FakeGraph()
+    assert TestClient(app).get("/health/graph").json() == {"drivers": 23}

@@ -5,5 +5,11 @@
       "maxDuration": 60,
       "excludeFiles": "{tests/**,evals/**,scripts/**,data/**,.venv/**,Dockerfile,**/__pycache__/**}"
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/health/graph",
+      "schedule": "0 6 * * *"
+    }
+  ]
 }

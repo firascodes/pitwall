@@ -31,6 +31,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     async with AsyncExitStack() as stack:
         graph = connect(s)
         stack.callback(graph.close)
+        app.state.graph = graph
         app.state.store = TelemetryStore(
             s.telemetry_dir, openf1_lap_loader(graph), postgres_lock(s.database_url)
         )
@@ -103,3 +104,10 @@ def health() -> dict[str, str | int | bool]:
         "agent": getattr(app.state, "agent", None) is not None,
         "auth": bool(get_settings().supabase_url),
     }
+
+
+@app.get("/health/graph")
+def graph_health() -> dict[str, int]:
+    """One real read, so the daily cron keeps AuraDB Free from pausing."""
+    records = app.state.graph.execute_query("MATCH (d:Driver) RETURN count(d) AS n").records
+    return {"drivers": records[0]["n"]}

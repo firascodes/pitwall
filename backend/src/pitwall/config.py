@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     api_url: str = "http://localhost:8000"  # public URL of this API, for the Telegram webhook
     supabase_url: str | None = None  # set it to require sign-in after the guest question
     ip_salt: SecretStr = SecretStr("pitwall-dev-salt")  # guests are keyed by a salted IP hash
-    guest_daily_questions: int = 1
+    guest_daily_questions: int = 3
     user_daily_questions: int = 30
     telegram_bot_token: SecretStr | None = None
     telegram_webhook_secret: SecretStr | None = None

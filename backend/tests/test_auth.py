@@ -53,12 +53,13 @@ def ask(client, headers=None):
     return client.post("/ask", json={"question": "Who leads?"}, headers=headers or {})
 
 
-def test_a_guest_gets_one_question(client) -> None:
-    assert ask(client).status_code == 200
-    second = ask(client)
-    assert second.status_code == 429
-    assert second.json()["detail"]["code"] == "guest_limit"
-    assert client.get("/quota").json() == {"auth": True, "signed_in": False, "used": 1, "limit": 1}
+def test_a_guest_gets_three_questions(client) -> None:
+    for _ in range(3):
+        assert ask(client).status_code == 200
+    fourth = ask(client)
+    assert fourth.status_code == 429
+    assert fourth.json()["detail"]["code"] == "guest_limit"
+    assert client.get("/quota").json() == {"auth": True, "signed_in": False, "used": 3, "limit": 3}
 
 
 def test_a_signed_in_user_has_their_own_quota(client) -> None:

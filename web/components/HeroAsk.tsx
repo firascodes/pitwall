@@ -28,7 +28,7 @@ export function HeroAsk() {
       </form>
       <span className="free">
         <span className="sq" style={{ background: "var(--green)" }} />
-        One free question, no sign-up. Sign in for more.
+        Three free questions a day, no sign-up. Sign in for more.
       </span>
       <div className="hero-chips">
         {EXAMPLES.map(([label, question]) => (

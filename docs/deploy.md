@@ -24,10 +24,11 @@ Also set a hard monthly limit in the OpenAI dashboard.
    cd backend
    PITWALL_TARGET_NEO4J_URI='neo4j+s://<id>.databases.neo4j.io' \
    PITWALL_TARGET_NEO4J_PASSWORD='<aura password>' \
+   PITWALL_TARGET_NEO4J_USER='<aura username>' \
    uv run pitwall-copy-graph
    ```
 
-AuraDB Free pauses after 3 days with no queries. Resume it in the console if the API says the graph is down.
+AuraDB Free pauses after 3 days with no queries; the API's daily cron prevents that.
 
 ## 2. Supabase
 
@@ -43,15 +44,16 @@ AuraDB Free pauses after 3 days with no queries. Resume it in the console if the
 
 ## 3. The API on Vercel
 
-New project → import `firascodes/pitwall` → **Root Directory** `backend`. Vercel finds `app.py` and installs
-from `uv.lock`. Environment variables:
+New project → import `firascodes/pitwall` → **Root Directory** `backend`, **Framework Preset** FastAPI. Vercel
+finds `app.py` and installs from `uv.lock`. A daily cron calls `/health/graph`, so AuraDB Free never pauses. Environment variables:
 
 | Key | Value |
 |---|---|
 | `PITWALL_OPENAI_API_KEY` | your OpenAI key |
 | `PITWALL_NEO4J_URI` | `neo4j+s://<id>.databases.neo4j.io` |
+| `PITWALL_NEO4J_USER` | the Aura username (newer instances use the instance ID, not `neo4j`) |
 | `PITWALL_NEO4J_PASSWORD` | the Aura password |
-| `PITWALL_DATABASE_URL` | the Supabase transaction pooler URI |
+| `PITWALL_DATABASE_URL` | the Supabase transaction pooler URI (encode `@` as `%40` and `%` as `%25` in the password) |
 | `PITWALL_SUPABASE_URL` | `https://<ref>.supabase.co` (turns on the guest limit and sign-in) |
 | `PITWALL_IP_SALT` | any long random string |
 | `PITWALL_API_URL` | this project's URL, e.g. `https://pitwall-api.vercel.app` |

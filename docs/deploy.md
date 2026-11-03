@@ -37,9 +37,11 @@ AuraDB Free pauses after 3 days with no queries; the API's daily cron prevents t
    The API creates its own tables.
 2. Sign-in (guests get three questions a day per network; signed-in users get 30):
    - **Authentication → URL Configuration:** Site URL = the web URL, and add `<web URL>/chat` to Redirect URLs.
-   - **Authentication → Sign In / Providers:** email links are on by default. For Google and GitHub, create an
-     OAuth app with each provider, using the callback URL Supabase shows, enable it in Supabase, then add
-     `NEXT_PUBLIC_AUTH_PROVIDERS=google,github` to the web project so the buttons appear.
+   - **Authentication → Sign In / Providers:** email and password is on by default and Supabase stores the
+     hashed passwords in your project's Postgres. For a demo, turn **Confirm email** off so new accounts
+     can sign in at once (the built-in mailer allows only a few emails an hour). Google and GitHub need an
+     OAuth app with each provider; enable them in Supabase, then set `NEXT_PUBLIC_AUTH_PROVIDERS=google,github`
+     on the web project to switch their buttons on.
    - **Project Settings → API Keys:** copy the **publishable** key (never the secret key).
    - **Project Settings → JWT Keys:** the project must sign with an asymmetric key (ECC P-256, the default).
 

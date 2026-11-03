@@ -24,7 +24,7 @@ An agent on a Neo4j knowledge graph and real telemetry. Every answer shows the C
 - **Answers from a knowledge graph.** "What is Antonelli's qualifying head-to-head against Russell?" becomes Cypher on Neo4j. The answer cites the rows it came from.
 - **Replays real laps.** "Compare Hamilton and Leclerc in Singapore qualifying" rebuilds both laps from OpenF1 telemetry: a pixel replay with a ghost car, the gap through the lap, and the corners where time was won.
 - **Shows its work.** The trace lists every tool call and every Cypher query, with its parameters, row count and time. Each answer shows its LLM cost (about $0.0008 for a lap comparison).
-- **Free to try.** Ask three questions a day as a guest. Sign in with Google, GitHub or an email link for 30 a day. A daily spend cap in Postgres protects the LLM budget.
+- **Free to try.** Ask three questions a day as a guest. Sign up with an email and password for 30 a day. A daily spend cap in Postgres protects the LLM budget.
 - **Runs on Telegram too.** The same agent answers in chat, and "Open lap replay" opens the replay as a Telegram Mini App.
 
 ## Architecture

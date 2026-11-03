@@ -25,7 +25,10 @@ const back = () => `${window.location.origin}/chat`;
 export const signInWith = (provider: "google" | "github") =>
   supabase?.auth.signInWithOAuth({ provider, options: { redirectTo: back() } });
 
-export const emailLink = (email: string) =>
-  supabase?.auth.signInWithOtp({ email, options: { emailRedirectTo: back() } });
+export const signUp = (email: string, password: string) =>
+  supabase?.auth.signUp({ email, password, options: { emailRedirectTo: back() } });
+
+export const signIn = (email: string, password: string) =>
+  supabase?.auth.signInWithPassword({ email, password });
 
 export const signOut = () => supabase?.auth.signOut();
